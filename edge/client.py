@@ -1,5 +1,50 @@
 import requests
-import json
+import cv2
+import argparse
+import os
+import time
+from video_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #api_url = "http://localhost:5000/hello"
 api_url = "http://10.0.0.3:5000/hello"
 response = requests.get(api_url)

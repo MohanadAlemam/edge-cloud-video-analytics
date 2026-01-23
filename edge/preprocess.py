@@ -1,0 +1,1 @@
+# Resize, encode filtering and maybe optional edge model

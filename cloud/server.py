@@ -1,4 +1,36 @@
-from flask import Flask
+from flask import Flask, request, jsonify
+import numpy as np
+import time
+import os
+import cv2
+
+
+
+app = Flask(__name__)
+
+@app.route('/infer', methods=['POST'])
+def infer():
+    end2end_start = time.time()
+
+    image = request.files['image']
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 from flask_restful import Api, Resource
 
 app = Flask(__name__)
