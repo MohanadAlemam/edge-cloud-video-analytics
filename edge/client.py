@@ -130,6 +130,49 @@ def run_edge_pipeline(
 
 
 
+# 3. Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
+
+if __name__ == "__main__":
+    # Runs only when execute python edge/client.py in the terminal.
+    # Create a CLI parser so users can run this script from the terminal
+    parser = argparse.ArgumentParser(
+        description="Edge pipeline: generating, preprocessing and sending interesting frames to the cloud for inference."
+    )
+    # Required path to the input video file
+    parser.add_argument("--video_path", type=str, required=True,
+                        help="Path to the video file.")
+
+    # Optional tuning parameters exposed as CLI flags
+    parser.add_argument("--server_url", type=str, default="http://127.0.0.1:5000",
+                        help="Cloud server URL")
+
+    parser.add_argument("--skip_interval", type=int, default=0,
+                        help="Frame Skip: consider and send every (skip+1) frame, interval between frames")
+    parser.add_argument("--resize_width", type=int, default=640,
+                        help="Resized frame width (px)")
+    parser.add_argument("--quality", type=int, default=80,
+                        help="JPEG quality (px) 0-100")
+    parser.add_argument("--change_threshold", type=float, default=15.0,
+                        help="Change Threshold: the mean pixel difference in the frame to consider the frame interesting.")
+    parser.add_argument("--debug_mode", type=bool, default=False,
+                        help = "Debug mode: to conduct a a test by processing and sending only a a specific number of frames.")
+    parser.add_argument("--debug_frames", type=int, default=5,
+                        help="Debug frames: number of frame for the debug mode.")
+
+    # parse the CLI arguments into the pipline argument object
+    arguments = parser.parse_args()
+
+    # call the main orchestrator function
+    run_edge_pipeline(
+        video_path = arguments.video_path,
+        cloud_server_url = arguments.server_url,
+        frame_skip = arguments.skip_interval,
+        resize_width = arguments.resize_width,
+        jpeg_quality = arguments.quality,
+        frame_change_threshold = arguments.change_threshold,
+        debug_mode = arguments.debug_mode,
+        debug_frames = arguments.debug_frames
+    )
 
 
 
