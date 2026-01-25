@@ -57,7 +57,7 @@ def run_edge_pipeline(
         debug_frames:int = 5,
 ):
     """"
-    Orchestration function for edge pipeline to organise and mange edge processes.
+    Orchestration function for edge pipeline to organise and manage edge processes.
 
     - Generate frames using video_frames_generator
     - Preprocess including resize and grayscale conversion
@@ -93,6 +93,42 @@ def run_edge_pipeline(
 
         print(f"Edge frame change score = {change_score:.2f}.\nIs the frame interesting? {significant_change_detected}")
         # Call interesting_frames function and assess the change in the frames
+
+
+        # 5. SEND ONLY INTERESTING FRAMES TO THE CLOUD FOR INFERENCE
+        if significant_change_detected:
+            # in case the frame is interesting ie significant change occurs
+            # we need to send this frame to the cloud for inference, colored version of the frame as it has more info
+
+            jpeg_payload = encode_to_jpeg_bytes(frame=smaller_frame, quality=jpeg_quality)
+            # prepare the colored version of the frame as it has more info
+
+            send_start = time.time()
+            # record the sending time and send the frame
+            try:
+                cloud_response = feed_cloud_jpeg(cloud_server_url = cloud_server_url,
+                                                 jpeg_bytes = jpeg_payload
+                                                 )
+                round_trip_time = time.time() - send_start * 1000.0 # measure round trip in ms
+                frames_sent += 1 # up the frames sent counter
+
+                print(f"Edge sent frame{frame_index} .Round trip time: {round_trip_time:.2f} ms."
+                      f"\nServer response: {cloud_response}")
+
+            except Exception as e:
+                print(f"Edge Error related to sending frame: {frame_index}, {e}")
+                # handling errors
+
+        previous_gray = gray_and_small
+        # current frame becomes previous
+
+        if debug_mode and frames_seen == debug_frames:
+            break
+
+    # give a summary at the end
+    print(f"Edge processing completed. Frames seen: {frames_seen}, Frames sent: {frames_sent}")
+
+
 
 
 
