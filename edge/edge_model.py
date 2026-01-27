@@ -94,7 +94,7 @@ class EdgeModel:
         :return: confidence list
         """
         if colored_frame is None:
-            return []
+            return [], 0.0 # no confidence lists, and elapse time is zero
         # If caller passed nothing false return "not interesting"
 
         self._load_edge_model()
@@ -102,12 +102,17 @@ class EdgeModel:
 
         # If YOLO unavailable, fall back to cheap detector
         if not self._model_loaded:
-                return []
+                return [], 0.0
 
         # Else run the Yolo inference
         try:
+            start_time = time.time()
+
             results = self._model(colored_frame, imgsz=416, verbose=False)
             # Run the model on the image, ultralytics accepts np images.
+
+            elapsed_time = (time.time() - start_time) * 1000.0 # inference time for each frame ms
+
             result_for_image = results[0]
 
             # Get boxes object safely.
@@ -116,9 +121,10 @@ class EdgeModel:
             # Extract confidence scores only
             confidences = [float(box.conf) for box in boxes_container]
             # list comprehension to get the list of confidence for the objects detected in the frame
-            return confidences
+
+            return confidences, elapsed_time
         except Exception:
-                return []
+                return [], 0.0 # no confidence lists, and elapse time is zero
 
     def yolo_decision(self, colored_frame: np.ndarray):
         """
@@ -127,14 +133,14 @@ class EdgeModel:
         :param colored_frame: the frame with three channels RGB values
         :return: Bool True or False
         """
-        confidences_list = self._detect_edge(colored_frame)
+        confidences_list, elapsed_time_ms = self._detect_edge(colored_frame)
 
         if not confidences_list:
-            return False
+            return False, elapsed_time_ms
         else:
             cloud_decision = max(confidences_list) >= self.edge_confident_threshold
 
-            return cloud_decision
+            return cloud_decision, elapsed_time_ms
 
 
 
