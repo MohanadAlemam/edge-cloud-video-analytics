@@ -44,7 +44,7 @@ def feed_cloud_jpeg(
 
 
 # 2. Orchestrator function to run the edge pipeline
-def run_edge_pipeline(
+def orchestrator_run_pipeline(
         video_path:str,
         cloud_server_url:str,
         frame_skip: int = 20,
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
 
     # call the main orchestrator function
-    run_edge_pipeline(
+    orchestrator_run_pipeline(
         video_path = arguments.video_path,
         cloud_server_url = arguments.server_url,
         frame_skip = arguments.skip_interval,
