@@ -1,6 +1,3 @@
-import argparse
-# Commandline argument parsing
-
 from flask import Flask, request, jsonify
 import cv2
 import numpy as np
@@ -16,26 +13,27 @@ except Exception:
 
 app = Flask(__name__)
 
-
 _cloud_model = None
 _cloud_model_loaded = False
 
 cloud_metrics = {"total_requests_handled": 0,
                  "per_frame_processing_ms": []}
 
-def _load_model(model_name:str = "yolov8s.pt"):
-# yolov8s.pt as default is it faster and have good accuracy
+def _load_model(model_path:str = None):
+# yolov8.pt as default is it faster and have good accuracy
     """
     Lazy load the chosen YOLO model on first request, or at startup if called.
     Returns model or None.
 
     :return: the model or None.
     """
-    global _cloud_model_loaded, _cloud_model # modify the global variables
+    global _cloud_model_loaded, _cloud_model, _MODEL_PATH # modify the global variables
     # Ensures the model is loaded once and reused across all inference requests
 
-    # Try to load YOLO from Ultralytics
-    if _cloud_model_loaded:
+    if model_path is None:
+        model_path = _MODEL_PATH # sent model path to the global Model path
+
+    if _cloud_model_loaded and _cloud_model is not None:
         return _cloud_model
 
     if not _HAS_YOLO:
@@ -44,13 +42,13 @@ def _load_model(model_name:str = "yolov8s.pt"):
     # Try to load the specified model from YOLO
     try:
         global _cloud_model
-        _cloud_model = YOLO(model_name) # load the chosen model
+        _cloud_model = YOLO(model_path) # load the chosen model
         _cloud_model_loaded = True
-        print(f"Cloud model loaded: {model_name}")
+        print(f"Cloud model loaded: {model_path}")
         return _cloud_model
 
     except Exception:
-        print(f"Cloud Model: {model_name} failed to load from YOLO.")
+        print(f"Cloud Model: {model_path} failed to load from YOLO.")
         _cloud_model_loaded = False
         _cloud_model = None
         return None
@@ -89,7 +87,7 @@ def parse_detections(result):
         for box in boxes:
             # each box represents a detected item, with:
             # box.cls= class index, box.conf = confidence score, box.xyxy = bounding box coordinates
-            confidence = float(box.conf, 0.0) if hasattr(box, "conf") else 0.0
+            confidence = float(getattr(box, "conf", 0.0))
             class_index = int(box.cls) if hasattr(box, "cls") else -1
             # try to get the class index if no index map it to -1 =unknown
 
@@ -121,6 +119,47 @@ def parse_detections(result):
     except Exception:
         return []
     return frame_detections # a list of dicts
+
+
+# ENDPOINT : When someone sends a request to infer, run this function
+@app.route('/inference', methods=['POST'])
+
+def inference():
+    """
+    Conduct inference using YOLO model. Receives requests from the edge.
+
+    :return: the inference result including detections and time to process the frame.
+    """
+    frame_size = 640
+
+    frame = _read_frame_from_request(request)
+
+    if frame is None:
+        return jsonify({"error": "No frame received."}), 400
+
+    model = _load_model() # model name set in __main__
+    if model is None:
+        return jsonify({"processing_time_ms":0.0, "detections":[]}), 503 # Service unavailable
+
+    start = time.time()
+
+    try:
+        results = model(frame, imgsz= frame_size, verbose=False) # produces ultralytics object
+    except Exception as e:
+        # if inference failure record zero ms, and return 500 error
+        return jsonify({"processing_time_ms": 0.0, "detections":[], "error": "inference failed"}), 500 # internal error
+
+    process_time = (time.time() - start) * 1000.0
+
+    frame_result = results[0]
+    detections = parse_detections(frame_result)
+
+    # Update the cloud metrics dict of this frames info
+    cloud_metrics["total_requests_handled"] += 1
+    cloud_metrics["per_frame_processing_ms"].append(process_time)
+
+    return jsonify({"processing_time_ms":float(process_time), "detections":detections}), 200 # 200 = success
+
 
 
 
