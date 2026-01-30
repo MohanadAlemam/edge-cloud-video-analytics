@@ -161,9 +161,20 @@ def inference():
     return jsonify({"processing_time_ms":float(process_time), "detections":detections}), 200 # 200 = success
 
 
+# Metrics
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    """
+    Utilizes the cloud resources to aggregate the cloud metrics from the in-memory info cloud_metrics including:
 
+    - total_requests_handled
+    - per_frame_processing_ms
+    :return cloud metrics aggregation
+    """
+    total = int(cloud_metrics["total_requests_handled"])
 
+    avg_time = (sum(cloud_metrics["per_frame_processing_ms"]) / len(cloud_metrics["per_frame_processing_ms"])
+                if cloud_metrics["per_frame_processing_ms"] else 0.0)
 
-
-
+    return jsonify({"cloud_requests_handled":total, "avg_cloud_inference_time_ms":avg_time}), 200
 
