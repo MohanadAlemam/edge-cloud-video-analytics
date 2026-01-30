@@ -178,3 +178,37 @@ def metrics():
 
     return jsonify({"cloud_requests_handled":total, "avg_cloud_inference_time_ms":avg_time}), 200
 
+
+# CLI
+if __name__ == '__main__':
+    import argparse
+    # Commandline argument parsing
+
+    parser = argparse.ArgumentParser(
+        description='Cloud inference: cloud model inference process.'
+    )
+
+    # Model path and its default value
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        default="./models/yolov8s.pt",
+        help="Path to cloud YOLO model"
+    )
+    parser.add_argument(
+        "--port", type=int,
+        default=5000,
+        help="Port number for the cloud server")
+
+    args = parser.parse_args()
+
+     # set the global model path
+    _MODEL_PATH = args.model_path
+
+    _load_model(_MODEL_PATH)
+    # preload the model for a warm start
+
+    app.run(host='10.0.0.3', port=args.port, debug=True)
+    # run the app and listen to queries
+
+    # edge -side : '#"--server_url", type = str, default = "http://10.0.0.3:5000",
