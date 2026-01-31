@@ -7,86 +7,21 @@ import time
 import numpy as np
 from pathlib import Path
 
-from video_reader import video_frames_generator
-from preprocess import (resize_frame,
+from .video_reader import video_frames_generator
+from .preprocess import (resize_frame,
                         convert_to_grayscale,
                         encode_to_jpeg_bytes,
                         is_frame_interesting)
 
-from edge_model import EdgeModel
+from .edge_model import EdgeModel
 #import the edge model to conduct lightweight on-edge processing
+from common.visualize import annotate_frame
+# load the annotation function
+from .cloud_feeder import feed_cloud_jpeg
+# load the feeder function
 
 #-----------------------------------------------------------------------------------------------------------------------
-# 1. PROCESSING FUNCTIONS
-#-----------------------------------------------------------------------------------------------------------------------
-
-# function to feed the could frames
-def feed_cloud_jpeg(
-        cloud_server_url:str,
-        jpeg_bytes:bytes,
-        requests_timeout_sec: int =10
-):
-    """
-    Send the in-memory jpeg bytes to cloud server for inference.
-
-    it only does the HTTP request and return parsed JSON.
-    """
-    # prepare multipart or form data payload, field "image" with (filename, bytes, mime-type/ media type eg JPEG image)
-    files_payload = {
-        "image": ("frame.jpg", jpeg_bytes, "image/jpeg")
-    }
-    # will post the in memory JPEG as a multi-part file/payload to server/inference
-    response = requests.post(cloud_server_url.rstrip("/") + "/inference",
-                             files=files_payload, timeout=requests_timeout_sec)
-    # normalize URL by removing slashes if present and append the /infer endpoint then POST files
-
-    response.raise_for_status()
-    # Error handling for HTTP requests. to avoid failed request or errors (e.g. 500, 404, 401) being treated as inference
-
-    # parse response body as JSON and return the resulting Python object e.g. dictionary
-    return response.json()
-
-# Function to draw detections of frames
-def annotate_frame(resized_frame: np.ndarray, cloud_response: dict):
-    """
-    Draw bounding boxes, and shows labels on each frame based on the cloud_response.
-
-    :param resized_frame: frame to draw on, the small/resized frame
-    :param cloud_response: dict returned from cloud inference which contains 'detections'
-    :return: annotated frame which can be written to video or displayed
-    """
-
-    detections = cloud_response.get("detections", [])
-    display_frame = resized_frame.copy()  # copy of the resized frame
-
-    # Unpack detection object
-    for detection in detections:
-        cls = detection.get("class", "unknown")
-        # get the class, if doesnt exit use a generic label "unknown"
-        confidence = detection.get("confidence", 0.0)
-        bounding_box = detection.get("bounding_box", [])
-
-        if len(bounding_box) == 4:
-            x1, y1, x2, y2 = map(int, bounding_box)
-            # converts float values to integers, OpenCV requires ints
-
-            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
-            # (0, 255, 0) make the color in BGR format = green, and 2 is the thickness of the borders
-
-            cv2.putText(
-                display_frame,
-                f"{cls}: {confidence:.2f}",
-                (x1, max(0, y1 - 8)),  # put the text slightly above the bounding box
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.4,  # font size
-                (255, 255, 255),  # color of the font
-                1,
-            )
-    return display_frame
-
-
-#-----------------------------------------------------------------------------------------------------------------------
-# 2. ORCHESTRATOR FUNCTION TO RUN AND MANGE THE PIPELINE
+# ORCHESTRATOR FUNCTION TO RUN AND MANGE THE PIPELINE
 #-----------------------------------------------------------------------------------------------------------------------
 
 VIDEO_OUTPUT_PATH = "output/annotated_output.mp4" # the name of the output file if no realtime/ live display
@@ -240,7 +175,6 @@ def orchestrator_run_pipeline(
                         print(f"Edge Error related to sending frame: {frame_index}, {e}")
                         # handling errors
 
-
             previous_grey = grey_and_small
             # current frame becomes previous
             if debug_mode and total_frames_processed == debug_frames:
@@ -300,7 +234,7 @@ def orchestrator_run_pipeline(
     return edge_metrics, network_bandwidth_metrics, cloud_metrics
 
 #-----------------------------------------------------------------------------------------------------------------------
-# 3. Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
+# Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
 #-----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     # Runs only when execute python edge/client.py in the terminal.
