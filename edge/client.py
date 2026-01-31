@@ -8,16 +8,19 @@ import numpy as np
 from pathlib import Path
 
 from video_reader import video_frames_generator
-
 from preprocess import (resize_frame,
                         convert_to_grayscale,
                         encode_to_jpeg_bytes,
                         is_frame_interesting)
 
-from edge_model import EdgeModel #import the edge model to conduct lightweight on-edge processing
+from edge_model import EdgeModel
+#import the edge model to conduct lightweight on-edge processing
 
+#-----------------------------------------------------------------------------------------------------------------------
+# 1. PROCESSING FUNCTIONS
+#-----------------------------------------------------------------------------------------------------------------------
 
-# 1. a function to feed the could frames
+# function to feed the could frames
 def feed_cloud_jpeg(
         cloud_server_url:str,
         jpeg_bytes:bytes,
@@ -32,8 +35,8 @@ def feed_cloud_jpeg(
     files_payload = {
         "image": ("frame.jpg", jpeg_bytes, "image/jpeg")
     }
-    # will post the in memory JPEG as a multi-part file/payload to server/infer
-    response = requests.post(cloud_server_url.rstrip("/") + "/infer",
+    # will post the in memory JPEG as a multi-part file/payload to server/inference
+    response = requests.post(cloud_server_url.rstrip("/") + "/inference",
                              files=files_payload, timeout=requests_timeout_sec)
     # normalize URL by removing slashes if present and append the /infer endpoint then POST files
 
@@ -67,7 +70,7 @@ def annotate_frame(resized_frame: np.ndarray, cloud_response: dict):
             x1, y1, x2, y2 = map(int, bounding_box)
             # converts float values to integers, OpenCV requires ints
 
-            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
             # (0, 255, 0) make the color in BGR format = green, and 2 is the thickness of the borders
 
             cv2.putText(
@@ -75,30 +78,29 @@ def annotate_frame(resized_frame: np.ndarray, cloud_response: dict):
                 f"{cls}: {confidence:.2f}",
                 (x1, max(0, y1 - 8)),  # put the text slightly above the bounding box
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,  # font size
-                (0, 255, 0),  # color of the font
-                1  # text thickness
+                0.4,  # font size
+                (255, 255, 255),  # color of the font
+                1,
             )
     return display_frame
 
 
-
-######################################################################################################################
-######################################################################################################################
-
+#-----------------------------------------------------------------------------------------------------------------------
 # 2. ORCHESTRATOR FUNCTION TO RUN AND MANGE THE PIPELINE
+#-----------------------------------------------------------------------------------------------------------------------
+
 VIDEO_OUTPUT_PATH = "output/annotated_output.mp4" # the name of the output file if no realtime/ live display
 
 def orchestrator_run_pipeline(
         video_path:str,
         cloud_server_url:str,
-        frame_skip: int = 15,
+        frame_skip: int = 10,
         resize_width:int = 640,
         jpeg_quality:int = 80,
-        frame_change_threshold:float = 20.0,
+        frame_change_threshold:float = 15.0,
         realtime_display:bool = False,
         debug_mode:bool = False,
-        debug_frames:int = 5,
+        debug_frames:int = 50,
 ):
     """
     Orchestration function for edge pipeline to organize and manage edge processes.
@@ -126,6 +128,25 @@ def orchestrator_run_pipeline(
     video_writer = None
     Path(VIDEO_OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
     # ensure parent dir exists: creates "output" if missing in case on not live processing
+
+
+    # Collect the native video info
+    capture = cv2.VideoCapture(video_path)
+    original_fps = capture.get(cv2.CAP_PROP_FPS) or 0.0
+    # get the native fps of the given video
+    if original_fps <= 0.0:
+        original_fps = 30.0
+        # fallback to 30 fps
+
+    effective_fps = original_fps / (frame_skip + 1)
+    if effective_fps <= 0.0:
+        effective_fps = 1.0
+        # fallback to 1 fps
+
+    # wait for the next frame ms
+    wait_ms = max(1, int(1000 / effective_fps))
+    # ms to pass to wait-key
+
     try:
         for frame_index, timestamp, colored_frame in video_frames_generator(video_path, skip_frames=frame_skip):
             total_frames_processed += 1
@@ -151,7 +172,7 @@ def orchestrator_run_pipeline(
             print(f"Edge frame change score = {change_score:.2f}.\nIs the frame interesting? {significant_change_detected}")
             # Call interesting_frames function and assess the change in the frames
 
-            # Dont send to the cloud if nothing changed
+            # Stop, dont send to the cloud if nothing changed
             if not significant_change_detected:
                 print(f"As per the pixels values no significant change in the video feed was detected."
                       f"\nNo further processing will be performed.")
@@ -188,7 +209,6 @@ def orchestrator_run_pipeline(
                         frame_sent_to_cloud += 1 # up the frames sent counter
                         cloud_round_trips_ms.append(round_trip_time) # collect ms round trip time
 
-
             # 7. DRAW DETECTIONS/RESPONSES ON FRAMES
                         display_frame = annotate_frame(smaller_frame, cloud_response)
                         # call annotate_frame function to place the detections on each frame
@@ -201,17 +221,17 @@ def orchestrator_run_pipeline(
                                 height, width = display_frame.shape[:2] #  # shape = height, width
                                 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-                                video_writer = cv2.VideoWriter(VIDEO_OUTPUT_PATH, fourcc, 30, (width, height))
+                                video_writer = cv2.VideoWriter(VIDEO_OUTPUT_PATH, fourcc, effective_fps, (width, height))
 
                             video_writer.write(display_frame) # write the frame to the video
 
                         if realtime_display:
                         # show to user, OpenCV window
                             cv2.imshow("Frame", display_frame)
-                            if cv2.waitKey(1) & 0xFF == ord('q'):
+                            if cv2.waitKey(wait_ms) & 0xFF == ord('q'):
                                 break
                             # waitKey(1) waits 1 millisecond for a key press
-                            # if user press 'q' exit the loop/ stop live processing
+                            # if user press q exit the loop/ stop live processing
 
                         print(f"Edge sent frame{frame_index} .Round trip time: {round_trip_time:.2f} ms."
                               f"\nServer response: {cloud_response}")
@@ -233,7 +253,6 @@ def orchestrator_run_pipeline(
         if realtime_display:
             cv2.destroyAllWindows()
             # Close all OpenCV windows created by cv2.imshow()
-
 
     # 6. Metrics
     frame_drop_ratio = 1 - (frame_sent_to_cloud / total_frames_processed) if total_frames_processed > 0 else 0
@@ -280,9 +299,9 @@ def orchestrator_run_pipeline(
 
     return edge_metrics, network_bandwidth_metrics, cloud_metrics
 
-
-# 7. Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
-
+#-----------------------------------------------------------------------------------------------------------------------
+# 3. Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
+#-----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     # Runs only when execute python edge/client.py in the terminal.
     # Create a CLI parser so users can run this script from the terminal
@@ -294,11 +313,11 @@ if __name__ == "__main__":
                         help="Path to the video file.")
 
     # Optional tuning parameters exposed as CLI flags
-    parser.add_argument("--server_url", type=str, default="http://10.0.0.3:5000",
+    parser.add_argument("--server_url", type=str, default="http://127.0.0.1:5000",
                         help="Cloud server URL")
 
     parser.add_argument("--skip_interval",
-                        type=int, default=15,
+                        type=int, default=10,
                         help="Frame Skip: consider and send every (skip+1) frame, interval between frames")
     parser.add_argument("--resize_width",
                         type=int, default=640,
@@ -310,7 +329,7 @@ if __name__ == "__main__":
                         type=float, default=15.0,
                         help="Change Threshold: the mean pixel difference in the frame to consider the frame interesting.")
     parser.add_argument("--debug_frames",
-                        type=int, default=5,
+                        type=int, default=50,
                         help="Debug frames: number of frame for the debug mode.")
 
     # Modes : debug and realtime display
@@ -339,7 +358,7 @@ if __name__ == "__main__":
         debug_frames = arguments.debug_frames,
     )
 
-
+#-----------------------------------------------------------------------------------------------------------------------
 
 
 
