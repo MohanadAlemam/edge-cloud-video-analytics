@@ -1,4 +1,3 @@
-# Resize encode filtering and maybe optional edge model
 import cv2
 import numpy as np
 from typing import Tuple, Optional
@@ -43,7 +42,7 @@ def resize_frame(
 
 
 # 2. convert to grayscale (useful for processing in the edge)
-def covert_to_grayscale(frame: np.ndarray) -> np.ndarray:
+def convert_to_grayscale(frame: np.ndarray) -> np.ndarray:
     """
     Convert the frame to grayscale and return it.
 
@@ -74,8 +73,8 @@ def encode_to_jpeg_bytes(frame: np.ndarray, quality:int = 80) -> bytes:
     return encoded_frame.tobytes()
 
 
-# 3. Filter and select interesting frames, frame difference including environmental changes and motion detection
-def interesting_frames(
+# 3. Filter and select interesting frames a heuristic approcah, frame difference including environmental changes and motion detection
+def is_frame_interesting(
         previous_frame: Optional[np.ndarray], # previous grayscale frame
         current_frame: np.ndarray, # current gray frame
         difference_threshold: float = 15.0
@@ -94,10 +93,10 @@ def interesting_frames(
 
     absolute_difference = cv2.absdiff(previous_frame, current_frame)
     # calculate the difference / environmental changes and motion detection
-    motion_score = float(np.mean(absolute_difference))
+    change_score = float(np.mean(absolute_difference))
 
-    significant_motion_detected = motion_score >= difference_threshold
+    significant_change_detected = change_score >= difference_threshold
     # Compare to the tolerance threshold
 
-    return significant_motion_detected, motion_score
+    return significant_change_detected, change_score
 
