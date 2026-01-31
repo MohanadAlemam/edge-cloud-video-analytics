@@ -4,6 +4,59 @@
 import cv2
 import numpy as np
 
+def parse_detections(frame_result: list[dict], model):
+    """
+
+    Convert a single ultralytics result object to a list of detection dicts:
+    [{"class": str, "confidence": float, "bbox": [x1,y1,x2,y2]}, ...]
+
+    :param frame_result: ultralytics result object
+    :param model: model
+    :return: list of dicts of objects detected in the frame
+    """
+
+    frame_detections = []
+
+    try:
+        boxes = getattr(frame_result, "boxes", []) # access the ultralytics object
+
+        for box in boxes:
+            # each box represents a detected item, with:
+            # box.cls= class index, box.conf = confidence score, box.xyxy = bounding box coordinates
+            confidence = float(getattr(box, "conf", 0.0))
+            class_index = int(box.cls) if hasattr(box, "cls") else -1
+            # try to get the class index if no index map it to -1 =unknown
+
+            if model and hasattr(model, "names"): # ensure we have the model , with attribute 'names'
+            # try to map the classes index to class name
+                class_name = model.names.get(class_index, str(class_index))
+            else:
+                class_name = str(class_index)
+
+            bounding_box = []
+            # Initialize an empty list for the bounding box
+            if hasattr(box, "xyxy"):
+            # Check if the detection object actually has bounding-box coordinates
+            # YOLO stores bounding boxes in "xyxy" format
+                try:
+                    coordinates = box.xyxy[0].cpu().numpy().tolist()
+                        # box.xyxy is usually a PyTorch tensor. [0]: get the first and only box for this detection
+                        # convert to cpu as PyTorch tensors live on the GPU and cannot be directly converted to NumPy.
+                        # NumPy only works with CPU memory
+                    bounding_box = [float(x) for x in coordinates]
+                        # convert all coords to floats eg [x1, y1, x2, y2] all floats
+                except Exception:
+                    bounding_box = []
+
+            frame_detections.append({"class": class_name,
+                                     "confidence": confidence,
+                                     "bounding_box": bounding_box
+                                     })
+    except Exception:
+        return []
+    return frame_detections # a list of dicts
+
+
 # Function to draw detections of frames
 def annotate_frame(resized_frame: np.ndarray, cloud_response: dict):
     """
