@@ -4,6 +4,9 @@ import time
 import numpy as np
 import threading # to do non-blocking background warmup
 
+from cloud.inference import inference
+from common.visualize import parse_detections
+
 
 class EdgeModel:
     """
@@ -16,12 +19,12 @@ class EdgeModel:
     """
     def __init__(self,
                  model_name: str="yolov8n.pt",
-                 edge_confident_threshold: float=0.30,
+                 edge_conf_threshold: float=0.70,
                  warmup_size: int=100):
 
 
         self.model_name = model_name
-        self.edge_confident_threshold = edge_confident_threshold
+        self.edge_conf_threshold = edge_conf_threshold
 
         # A small size to run a dummy inference, this warmup speeds up later calls (to reduces end to end time)
         self.warmup_size = warmup_size
@@ -94,7 +97,7 @@ class EdgeModel:
         :return: confidence list
         """
         if colored_frame is None:
-            return [], 0.0 # no confidence lists, and elapse time is zero
+            return [], {}, 0.0 # no confidence lists, and elapse time is zero
         # If caller passed nothing false return "not interesting"
 
         self._load_edge_model()
@@ -102,48 +105,47 @@ class EdgeModel:
 
         # If YOLO unavailable, fall back to cheap detector
         if not self._model_loaded:
-                return [], 0.0
+                return [], {}, 0.0
 
         # Else run the Yolo inference
+
         try:
             start_time = time.time()
 
             results = self._model(colored_frame, imgsz=416, verbose=False)
             # Run the model on the image, ultralytics accepts np images.
-
-            elapsed_time = (time.time() - start_time) * 1000.0 # inference time for each frame ms
+            inference_ms = (time.time() - start_time) * 1000.0 # inference time for each frame ms
 
             result_for_image = results[0]
-
-            # Get boxes object safely.
-            boxes_container = getattr(result_for_image, "boxes", [])
+            detections = parse_detections(result_for_image, model=self._model)
+            # detections = a list of dictionaries. keys "class" "confidence" "bounding_box"
+            edge_response = {
+                "processing_time_ms":float(inference_ms),
+                "detections":detections
+            }
 
             # Extract confidence scores only
-            confidences = [float(box.conf) for box in boxes_container]
-            # list comprehension to get the list of confidence for the objects detected in the frame
+            detection_confidences = []
+            for detection in detections:
+                confidence = detection.get("confidence", 0.0)
+                detection_confidences.append(confidence)
 
-            return confidences, elapsed_time
+            return detection_confidences, edge_response, inference_ms
         except Exception:
-                return [], 0.0 # no confidence lists, and elapse time is zero
+                return [], {}, 0.0 # no confidence lists, and elapse time is zero
 
-    def yolo_decision(self, colored_frame: np.ndarray):
+    def edg_model_decision(self, colored_frame: np.ndarray):
         """
-        Detect on sending the frame to the cloud based on yolo detection and confidence scores.
+        Decide whether to send the frame to cloud based on edge detections.
 
-        :param colored_frame: the frame with three channels RGB values
-        :return: Bool True or False
+        Returns: (edge_decision: bool, confidences_list: List[float],
+              edge_response: dict, inference_ms: float)
         """
-        confidences_list, elapsed_time_ms = self._detect_edge(colored_frame)
+        confidences_list, edge_response, inference_ms = self._detect_edge(colored_frame)
 
         if not confidences_list:
-            return False, elapsed_time_ms
+            return False, [], edge_response, 0.0
         else:
-            cloud_decision = max(confidences_list) >= self.edge_confident_threshold
+            edge_decision = max(confidences_list) < self.edge_conf_threshold
 
-            return cloud_decision, elapsed_time_ms
-
-
-
-
-
-
+            return edge_decision, confidences_list, edge_response, inference_ms
