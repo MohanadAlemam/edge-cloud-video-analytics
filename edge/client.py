@@ -32,10 +32,11 @@ def orchestrator_run_pipeline(
         frame_skip: int = 10,
         resize_width:int = 640,
         jpeg_quality:int = 80,
-        frame_change_threshold:float = 15.0,
-        realtime_display:bool = False,
+        Heuristic_threshold: float = 5.0,
+        edge_conf_threshold: float = 0.70,
+        live_display:bool = False,
         debug_mode:bool = False,
-        debug_frames:int = 50,
+        debug_frames:int = 5,
 ):
     """
     Orchestration function for edge pipeline to organize and manage edge processes.
@@ -57,8 +58,8 @@ def orchestrator_run_pipeline(
     edge_model_inferences_ms = [] # collects all edge model inference times
     total_bytes_sent_to_cloud = 0
 
-    # 1.1 Create an EdgeModel instance once before the loop.
-    edge_model = EdgeModel()
+    # 1.1 Create an EdgeModel instance once before the loop. and take the confidence threshold as an input
+    edge_model = EdgeModel(edge_conf_threshold = edge_conf_threshold)
 
     video_writer = None
     Path(VIDEO_OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -86,7 +87,7 @@ def orchestrator_run_pipeline(
         for frame_index, timestamp, colored_frame in video_frames_generator(video_path, skip_frames=frame_skip):
             total_frames_processed += 1
 
-            print (f"Edge frame {frame_index}, timestamp: {timestamp:.3f} second, (seen {total_frames_processed})")
+            print (f"Current Frame: {frame_index}, timestamp: {timestamp:.3f} second")
 
 
             # 2. PREPROCESSING FRAMES
@@ -101,16 +102,14 @@ def orchestrator_run_pipeline(
 
             # 3. DECIDING IF THE FRAME IS INTERESTING BASED ON HEURISTIC CHANGE
             significant_change_detected, change_score = is_frame_interesting(previous_frame = previous_grey,
-                                                                   current_frame = grey_and_small,
-                                                                   difference_threshold = frame_change_threshold)
-
-            print(f"Edge frame change score = {change_score:.2f}.\nIs the frame interesting? {significant_change_detected}")
+                                                                             current_frame = grey_and_small,
+                                                                             difference_threshold = Heuristic_threshold)
             # Call interesting_frames function and assess the change in the frames
 
             # Stop, dont send to the cloud if nothing changed
             if not significant_change_detected:
-                print(f"As per the pixels values no significant change in the video feed was detected."
-                      f"\nNo further processing will be performed.")
+                print(f"Heuristic change assessment: Score {change_score:.2f} No significant change in the video feed."
+                      f"\nNo further processing will be performed.\n")
                 previous_grey = grey_and_small
                 continue # stop and go to the next iteration
 
@@ -118,9 +117,13 @@ def orchestrator_run_pipeline(
 
             # if the fames are significantly different try the edge model (yolo) before sending to the cloud
             else:
-                send_to_cloud, edge_inference_time_ms = edge_model.yolo_decision(colored_frame)
+                send_to_cloud, confidences_list, edge_detections, inference_ms = edge_model.edg_model_decision(smaller_frame)
 
-                edge_model_inferences_ms.append(edge_inference_time_ms) # register this edge inference time
+                edge_model_inferences_ms.append(inference_ms) # register this edge inference time
+
+                display_frame = annotate_frame(smaller_frame, model_response=edge_detections)
+                print (f"Edge model: frame {frame_index} processed by the edge model."
+                       f"\nInference time: {inference_ms:.2f} ms\n")
 
             # 5. SEND ONLY INTERESTING FRAMES TO THE CLOUD FOR INFERENCE
                 if send_to_cloud:
@@ -137,7 +140,7 @@ def orchestrator_run_pipeline(
 
             # 6. GET THE CLOUD RESPONSE
                     try:
-                        cloud_response = feed_cloud_jpeg(cloud_server_url = cloud_server_url,
+                        cloud_detections = feed_cloud_jpeg(cloud_server_url = cloud_server_url,
                                                          jpeg_bytes = jpeg_payload)
 
                         round_trip_time = (time.time() - send_start) * 1000.0 # measure round trip in ms
@@ -145,35 +148,34 @@ def orchestrator_run_pipeline(
                         cloud_round_trips_ms.append(round_trip_time) # collect ms round trip time
 
             # 7. DRAW DETECTIONS/RESPONSES ON FRAMES
-                        display_frame = annotate_frame(smaller_frame, cloud_response)
+                        display_frame = annotate_frame(smaller_frame, model_response=cloud_detections)
                         # call annotate_frame function to place the detections on each frame
 
-                        # No realtime display : write the annotated frames to an mp4 video
-                        if not realtime_display:
-                            if video_writer is None:
-                            # create the video writer for the once for the first frame
-
-                                height, width = display_frame.shape[:2] #  # shape = height, width
-                                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-
-                                video_writer = cv2.VideoWriter(VIDEO_OUTPUT_PATH, fourcc, effective_fps, (width, height))
-
-                            video_writer.write(display_frame) # write the frame to the video
-
-                        if realtime_display:
-                        # show to user, OpenCV window
-                            cv2.imshow("Frame", display_frame)
-                            if cv2.waitKey(wait_ms) & 0xFF == ord('q'):
-                                break
-                            # waitKey(1) waits 1 millisecond for a key press
-                            # if user press q exit the loop/ stop live processing
-
-                        print(f"Edge sent frame{frame_index} .Round trip time: {round_trip_time:.2f} ms."
-                              f"\nServer response: {cloud_response}")
-
+                        print(f"Cloud server: frame {frame_index} processed by the cloud model."
+                              f"\nRound trip time: {round_trip_time:.2f} ms.\n")
                     except Exception as e:
                         print(f"Edge Error related to sending frame: {frame_index}, {e}")
                         # handling errors
+
+                        # No realtime display : write the annotated frames to an mp4 video
+                if not live_display:
+                    if video_writer is None:
+                    # create the video writer for the once for the first frame
+
+                        height, width = display_frame.shape[:2] #  # shape = height, width
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+
+                        video_writer = cv2.VideoWriter(VIDEO_OUTPUT_PATH, fourcc, effective_fps, (width, height))
+
+                    video_writer.write(display_frame) # write the frame to the video
+
+                if live_display:
+                # show to user, OpenCV window
+                    cv2.imshow("Frame", display_frame)
+                    if cv2.waitKey(wait_ms) & 0xFF == ord('q'):
+                        break
+                    # waitKey(1) waits 1 millisecond for a key press
+                    # if user press q exit the loop/ stop live processing
 
             previous_grey = grey_and_small
             # current frame becomes previous
@@ -184,7 +186,7 @@ def orchestrator_run_pipeline(
             video_writer.release()
             # Finalizes and closes the video file and  writes video metadata to disk
 
-        if realtime_display:
+        if live_display:
             cv2.destroyAllWindows()
             # Close all OpenCV windows created by cv2.imshow()
 
@@ -240,7 +242,7 @@ if __name__ == "__main__":
     # Runs only when execute python edge/client.py in the terminal.
     # Create a CLI parser so users can run this script from the terminal
     parser = argparse.ArgumentParser(
-        description="Edge pipeline: generating, preprocessing and sending interesting frames to the cloud for inference."
+        description="Run edge pipeline"
     )
     # Required path to the input video file
     parser.add_argument("--video_path", type=str, required=True,
@@ -259,20 +261,24 @@ if __name__ == "__main__":
     parser.add_argument("--quality",
                         type=int, default=80,
                         help="JPEG quality (px) 0-100")
-    parser.add_argument("--change_threshold",
-                        type=float, default=15.0,
+    parser.add_argument("--heuristic_threshold",
+                        type=float, default=5.0,
                         help="Change Threshold: the mean pixel difference in the frame to consider the frame interesting.")
     parser.add_argument("--debug_frames",
-                        type=int, default=50,
+                        type=int, default=5,
                         help="Debug frames: number of frame for the debug mode.")
+    parser.add_argument("--edge_conf_threshold",
+                        type=float, default=0.70,
+                        help="Confidence threshold for edge model, decides whether to send the frame to the cloud or not."
+                             "Default: 70.0)")
 
     # Modes : debug and realtime display
     parser.add_argument("--debug_mode",
                         action="store_true",
                         help = "Enable debug mode: to conduct a test by processing a specific number of frames.")
-    parser.add_argument("--realtime_display",
+    parser.add_argument("--live_display",
                         action="store_true",
-                        help="Enable realtime live display of predictions, default: save video."
+                        help="Enable real-time live display of predictions, default: save video."
                              "\n\nif 'False' saves frames to a video file.")
 
     # parse the CLI arguments into the pipline argument object
@@ -286,8 +292,9 @@ if __name__ == "__main__":
         frame_skip = arguments.skip_interval,
         resize_width = arguments.resize_width,
         jpeg_quality = arguments.quality,
-        frame_change_threshold = arguments.change_threshold,
-        realtime_display = arguments.realtime_display,
+        Heuristic_threshold= arguments.heuristic_threshold,
+        edge_conf_threshold = arguments.edge_conf_threshold,
+        live_display = arguments.live_display,
         debug_mode = arguments.debug_mode,
         debug_frames = arguments.debug_frames,
     )
