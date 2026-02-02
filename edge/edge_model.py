@@ -1,16 +1,15 @@
-# a lightweight edge model to reduce traffic to the cloud
 import time
-
 import numpy as np
 import threading # to do non-blocking background warmup
 
-from cloud.inference import inference
 from common.visualize import parse_detections
 
+#-----------------------------------------------------------------------------------------------------------------------
+# EDGE MODEL: LIGHTWEIGHT MODEL TO PERFORM ON-EDGE INFERENCE AND REDUCE TRAFFIC TO THE CLOUD
+#-----------------------------------------------------------------------------------------------------------------------
 
 class EdgeModel:
     """
-
     Edge Model class to create an instance of the edge model during runtime. It handles download of the backage.
     loading of the model weight inedge device and making decisions on whether to send the frame to the cloud or
     not based on the prediction confidence scores.
@@ -26,7 +25,7 @@ class EdgeModel:
         self.model_name = model_name
         self.edge_conf_threshold = edge_conf_threshold
 
-        # A small size to run a dummy inference, this warmup speeds up later calls (to reduces end to end time)
+        # A small size to run a dummy inference, this warmup speeds up later calls
         self.warmup_size = warmup_size
 
         self._model_loaded = False
@@ -78,7 +77,7 @@ class EdgeModel:
             if background_warmup:
             # start warmup in background so we don't block the pipeline
                 thread = threading.Thread(target=self._background_warmup, daemon=True)
-            # imgsz=self.warmup_size : resize dummy frame to a small square to do cheap warmup initialization.
+            # imgsz=self.warmup_size, resize dummy frame to a small square to do cheap warmup initialization.
                 thread.start()
 
             else:
@@ -103,12 +102,10 @@ class EdgeModel:
         self._load_edge_model()
         # load the model
 
-        # If YOLO unavailable, fall back to cheap detector
         if not self._model_loaded:
-                return [], {}, 0.0
+                return [], {}, 0.0 # If YOLO unavailable,
 
         # Else run the Yolo inference
-
         try:
             start_time = time.time()
 
@@ -144,7 +141,9 @@ class EdgeModel:
         confidences_list, edge_response, inference_ms = self._detect_edge(colored_frame)
 
         if not confidences_list:
-            return False, [], edge_response, 0.0
+            print("Edge model: Edge failed to detect objects. Sending to the cloud.")
+            return True, [], edge_response, inference_ms
+            # send to could if not objects detected
         else:
             edge_decision = max(confidences_list) < self.edge_conf_threshold
 
