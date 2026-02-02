@@ -65,7 +65,6 @@ def orchestrator_run_pipeline(
     Path(VIDEO_OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
     # ensure parent dir exists: creates "output" if missing in case on not live processing
 
-
     # Collect the native video info
     capture = cv2.VideoCapture(video_path)
     original_fps = capture.get(cv2.CAP_PROP_FPS) or 0.0
@@ -87,7 +86,7 @@ def orchestrator_run_pipeline(
         for frame_index, timestamp, colored_frame in video_frames_generator(video_path, skip_frames=frame_skip):
             total_frames_processed += 1
 
-            print (f"Current Frame: {frame_index}, timestamp: {timestamp:.3f} second")
+            print (f"Frame: {frame_index}. Timestamp: {timestamp:.2f} second.")
 
 
             # 2. PREPROCESSING FRAMES
@@ -108,8 +107,8 @@ def orchestrator_run_pipeline(
 
             # Stop, dont send to the cloud if nothing changed
             if not significant_change_detected:
-                print(f"Heuristic change assessment: Score {change_score:.2f} No significant change in the video feed."
-                      f"\nNo further processing will be performed.\n")
+                print(f"Heuristic change assessment: Is frame interesting? {significant_change_detected}. Score {change_score:.2f}"
+                      f"\nNo significant change in the video feed. No further processing will be performed.\n")
                 previous_grey = grey_and_small
                 continue # stop and go to the next iteration
 
@@ -122,22 +121,18 @@ def orchestrator_run_pipeline(
                 edge_model_inferences_ms.append(inference_ms) # register this edge inference time
 
                 display_frame = annotate_frame(smaller_frame, model_response=edge_detections)
-                print (f"Edge model: frame {frame_index} processed by the edge model."
-                       f"\nInference time: {inference_ms:.2f} ms\n")
+                print (f"Edge model: Send to cloud server? {send_to_cloud}."
+                       f"\nInference time: {inference_ms:.2f} ms.\n")
 
             # 5. SEND ONLY INTERESTING FRAMES TO THE CLOUD FOR INFERENCE
                 if send_to_cloud:
-
                     # send the colored frame to the cloud for inference, as it has more info
-
                     jpeg_payload = encode_to_jpeg_bytes(frame=smaller_frame, quality=jpeg_quality)
                     # prepare the colored version of the frame as it has more info
 
                     total_bytes_sent_to_cloud += len(jpeg_payload) # accumulate the total bytes
 
-                    send_start = time.time()
-                # record the sending time and send the frame
-
+                    send_start = time.time()# record the sending time and send the frame
             # 6. GET THE CLOUD RESPONSE
                     try:
                         cloud_detections = feed_cloud_jpeg(cloud_server_url = cloud_server_url,
@@ -160,12 +155,14 @@ def orchestrator_run_pipeline(
                         # No realtime display : write the annotated frames to an mp4 video
                 if not live_display:
                     if video_writer is None:
-                    # create the video writer for the once for the first frame
-
+                        # create the video writer for the once for the first frame
                         height, width = display_frame.shape[:2] #  # shape = height, width
                         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
+
                         video_writer = cv2.VideoWriter(VIDEO_OUTPUT_PATH, fourcc, effective_fps, (width, height))
+                        print("Writing the annotated video to directory 'output'. Video writer opened:",
+                              video_writer.isOpened())
 
                     video_writer.write(display_frame) # write the frame to the video
 
@@ -228,10 +225,10 @@ def orchestrator_run_pipeline(
     }
 
     # give a summary at the end
-    print(f"Edge processing completed:"
-          f"\n\nFrames seen: {total_frames_processed}"
+    print(f"\nVideo analytics completed:"
+          f"\n\nTotal frames seen: {total_frames_processed}"
           f"\n\nFrames sent to the cloud: {frame_sent_to_cloud}"
-          f"\n\nDrop ratio: {frame_drop_ratio}")
+          f"\n\nDrop ratio: {frame_drop_ratio}\n")
 
     return edge_metrics, network_bandwidth_metrics, cloud_metrics
 
@@ -298,7 +295,6 @@ if __name__ == "__main__":
         debug_mode = arguments.debug_mode,
         debug_frames = arguments.debug_frames,
     )
-
 #-----------------------------------------------------------------------------------------------------------------------
 
 
