@@ -4,7 +4,9 @@ import requests
 import argparse
 # Commandline argument parsing
 import time
+from datetime import datetime
 import numpy as np
+import json
 from pathlib import Path
 
 from .video_reader import video_frames_generator
@@ -19,27 +21,36 @@ from common.visualize import annotate_frame
 # load the annotation function
 from .cloud_feeder import feed_cloud_jpeg
 # load the feeder function
+from common.metrics_snapshot import write_metrics_snapshot
+# import the helper to update the metrics for the dashboard
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+Path("output").mkdir(parents=True, exist_ok=True)
+# this direct exists
+VIDEO_OUTPUT_PATH = "output/annotated_output.mp4"
+# the name of the output file if no realtime/ live display
+METRICS_PATH = "output/metrics_history.json"
+# record metrics for the dashboard to consume
 
 #-----------------------------------------------------------------------------------------------------------------------
 # ORCHESTRATOR FUNCTION TO RUN AND MANGE THE PIPELINE
 #-----------------------------------------------------------------------------------------------------------------------
 
-VIDEO_OUTPUT_PATH = "output/annotated_output.mp4" # the name of the output file if no realtime/ live display
-
 def orchestrator_run_pipeline(
         video_path:str,
         cloud_server_url:str,
-        frame_skip: int = 10,
+        frame_skip: int = 5,
         resize_width:int = 640,
         jpeg_quality:int = 80,
-        Heuristic_threshold: float = 5.0,
+        heuristic_threshold: float = 5.0,
         edge_conf_threshold: float = 0.70,
         live_display:bool = False,
         debug_mode:bool = False,
         debug_frames:int = 5,
 ):
     """
-    Orchestration function for edge pipeline to organize and manage edge processes.
+    Orchestration function for edge pipeline to organize and manage processes.
 
     - Generate frames using video_frames_generator.
     - Preprocess including resize and grayscale conversion.
@@ -51,9 +62,10 @@ def orchestrator_run_pipeline(
     print(f"Edge initiating processing pipeline. Server: {cloud_server_url}")
 
     total_frames_processed = 0
-    previous_grey = None
+    frames_processed_on_edge = 0
+    frames_sent_to_cloud = 0
 
-    frame_sent_to_cloud = 0
+    previous_grey = None
     cloud_round_trips_ms = []  # track all cloud round trips time ms
     edge_model_inferences_ms = [] # collects all edge model inference times
     total_bytes_sent_to_cloud = 0
@@ -68,6 +80,7 @@ def orchestrator_run_pipeline(
     # Collect the native video info
     capture = cv2.VideoCapture(video_path)
     original_fps = capture.get(cv2.CAP_PROP_FPS) or 0.0
+    capture.release()
     # get the native fps of the given video
     if original_fps <= 0.0:
         original_fps = 30.0
@@ -82,14 +95,19 @@ def orchestrator_run_pipeline(
     wait_ms = max(1, int(1000 / effective_fps))
     # ms to pass to wait-key
 
+    # Initialize a safe default
+    content_counts = {"vehicle_count": 0, "pedestrian_count": 0}
+    cloud_metrics = {}  # placeholder used by periodic snapshots
+
+    # 1. VIDEO DECODER
     try:
         for frame_index, timestamp, colored_frame in video_frames_generator(video_path, skip_frames=frame_skip):
-            total_frames_processed += 1
 
+            timestamp = float(timestamp)# time stamp is seconds
+            total_frames_processed += 1
             print (f"Frame: {frame_index}. Timestamp: {timestamp:.2f} second.")
 
-
-            # 2. PREPROCESSING FRAMES
+    # 2. PREPROCESSOR
             # resize the frame and  greyscale the frame
             smaller_frame = resize_frame(colored_frame, target_width=resize_width)
             grey_and_small = convert_to_grayscale(smaller_frame)
@@ -99,10 +117,10 @@ def orchestrator_run_pipeline(
                 previous_grey = grey_and_small
                 continue # stop and go to the next iteration
 
-            # 3. DECIDING IF THE FRAME IS INTERESTING BASED ON HEURISTIC CHANGE
+    # 3. HEURISTIC FILTER - DECIDING IF THE FRAME IS INTERESTING BASED ON CHANGE
             significant_change_detected, change_score = is_frame_interesting(previous_frame = previous_grey,
                                                                              current_frame = grey_and_small,
-                                                                             difference_threshold = Heuristic_threshold)
+                                                                             difference_threshold = heuristic_threshold)
             # Call interesting_frames function and assess the change in the frames
 
             # Stop, dont send to the cloud if nothing changed
@@ -112,19 +130,23 @@ def orchestrator_run_pipeline(
                 previous_grey = grey_and_small
                 continue # stop and go to the next iteration
 
-            # 4. LIGHTWEIGHT EDGE MODEL
-
+    # 4. LIGHTWEIGHT EDGE MODEL
             # if the fames are significantly different try the edge model (yolo) before sending to the cloud
             else:
-                send_to_cloud, confidences_list, edge_detections, inference_ms = edge_model.edg_model_decision(smaller_frame)
+                send_to_cloud, confidences_list, edge_response, inference_ms = edge_model.edg_model_decision(smaller_frame)
 
                 edge_model_inferences_ms.append(inference_ms) # register this edge inference time
+                content_counts = edge_response.get("content_counts",
+                                                   {"vehicle_count": 0, "pedestrian_count": 0})
+                # extract the count of vehicles and pedestrians, or 0  count
+                if not send_to_cloud:
+                    frames_processed_on_edge +=1
 
-                display_frame = annotate_frame(smaller_frame, model_response=edge_detections)
+                display_frame = annotate_frame(smaller_frame, model_response=edge_response)
                 print (f"Edge model: Send to cloud server? {send_to_cloud}."
                        f"\nInference time: {inference_ms:.2f} ms.\n")
 
-            # 5. SEND ONLY INTERESTING FRAMES TO THE CLOUD FOR INFERENCE
+    # 5. OFFLOADING MODULE - SEND ONLY INTERESTING FRAMES TO THE CLOUD FOR INFERENCE
                 if send_to_cloud:
                     # send the colored frame to the cloud for inference, as it has more info
                     jpeg_payload = encode_to_jpeg_bytes(frame=smaller_frame, quality=jpeg_quality)
@@ -133,17 +155,21 @@ def orchestrator_run_pipeline(
                     total_bytes_sent_to_cloud += len(jpeg_payload) # accumulate the total bytes
 
                     send_start = time.time()# record the sending time and send the frame
-            # 6. GET THE CLOUD RESPONSE
+
+    # 6. HEAVYWEIGHT CLOUD MODEL - GET THE CLOUD RESPONSE
                     try:
-                        cloud_detections = feed_cloud_jpeg(cloud_server_url = cloud_server_url,
+                        cloud_response = feed_cloud_jpeg(cloud_server_url = cloud_server_url,
                                                          jpeg_bytes = jpeg_payload)
 
                         round_trip_time = (time.time() - send_start) * 1000.0 # measure round trip in ms
-                        frame_sent_to_cloud += 1 # up the frames sent counter
+                        frames_sent_to_cloud += 1 # up the frames sent counter
                         cloud_round_trips_ms.append(round_trip_time) # collect ms round trip time
 
-            # 7. DRAW DETECTIONS/RESPONSES ON FRAMES
-                        display_frame = annotate_frame(smaller_frame, model_response=cloud_detections)
+                        content_counts = cloud_response.get("content_counts",
+                                                           {"vehicle_count": 0, "pedestrian_count": 0})
+                        ## to add a fallback for content count
+
+                        display_frame = annotate_frame(smaller_frame, model_response=cloud_response)
                         # call annotate_frame function to place the detections on each frame
 
                         print(f"Cloud server: frame {frame_index} processed by the cloud model."
@@ -152,14 +178,13 @@ def orchestrator_run_pipeline(
                         print(f"Edge Error related to sending frame: {frame_index}, {e}")
                         # handling errors
 
+    # 7. VIDEO DECODER - DRAW DETECTIONS/RESPONSES ON FRAMES
                         # No realtime display : write the annotated frames to an mp4 video
                 if not live_display:
                     if video_writer is None:
                         # create the video writer for the once for the first frame
                         height, width = display_frame.shape[:2] #  # shape = height, width
                         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-
-
                         video_writer = cv2.VideoWriter(VIDEO_OUTPUT_PATH, fourcc, effective_fps, (width, height))
                         print("Writing the annotated video to directory 'output'. Video writer opened:",
                               video_writer.isOpened())
@@ -176,8 +201,56 @@ def orchestrator_run_pipeline(
 
             previous_grey = grey_and_small
             # current frame becomes previous
+
+    # 8. METRICS AGGREGATOR
+
+            frames_dropped = (total_frames_processed - frames_processed_on_edge - frames_sent_to_cloud) if total_frames_processed > 0 else 0
+            average_round_trip = np.mean(cloud_round_trips_ms) if cloud_round_trips_ms else 0
+            average_edge_inference_ms = np.mean(edge_model_inferences_ms) if edge_model_inferences_ms else 0
+
+            # Metric to show the usefulness of the edge intelligence/processing and dropping of frames
+            # Measures: How much cloud traffic you avoided
+            cloud_avoidance_ratio = 1 - (
+                    frames_sent_to_cloud / total_frames_processed) if total_frames_processed > 0 else 0
+
+            # How many frames heuristic filter rejected
+            heuristic_drop_ratio = frames_dropped / total_frames_processed if frames_dropped > 0 else 0
+
+            slowest_round_trip = max(cloud_round_trips_ms) if cloud_round_trips_ms else 0
+            total_bytes_sent_mb = total_bytes_sent_to_cloud / (1024 * 1024) if total_bytes_sent_to_cloud else 0 # convert to kb
+
+            # Edge metrics update per frame
+            edge_metrics = {
+                "timestamp": timestamp,
+                "total_frames_processed": total_frames_processed,
+                "heuristic_frames_dropped": frames_dropped,
+                "cloud_avoidance_ratio": cloud_avoidance_ratio,
+                "heuristic_drop_ratio": heuristic_drop_ratio,
+                "avg_edge_inference_time": average_edge_inference_ms,
+                # Add edge-calculated, but cloud related metrics
+            }
+
+            # Network metrics update per frame
+            network_metrics = {
+                "total_frames_to_cloud": frames_sent_to_cloud,
+                "total_m_bytes_sent_to_cloud": total_bytes_sent_mb,
+            }
+
+            cloud_metrics ={
+                "avg_rt_ms": average_round_trip,
+                "slowest_rt_ms": slowest_round_trip,
+            }
+
+            # write a snapshot of the metrics
+            write_metrics_snapshot(
+                edge_metrics = edge_metrics,
+                cloud_metrics = cloud_metrics,
+                network_metrics = network_metrics,
+                content_metrics = content_counts)
+
             if debug_mode and total_frames_processed == debug_frames:
                 break
+
     finally:
         if video_writer is not None:
             video_writer.release()
@@ -187,50 +260,15 @@ def orchestrator_run_pipeline(
             cv2.destroyAllWindows()
             # Close all OpenCV windows created by cv2.imshow()
 
-    # 6. Metrics
-    frame_drop_ratio = 1 - (frame_sent_to_cloud / total_frames_processed) if total_frames_processed > 0 else 0
-    # a metric to show the usefulness of the edge intelligence/processing and dropping of frames
-    average_round_trip = np.mean(cloud_round_trips_ms) if cloud_round_trips_ms else 0
-    slowest_round_trip = max(cloud_round_trips_ms) if cloud_round_trips_ms else 0
-
-    average_edge_inference_ms = np.mean(edge_model_inferences_ms) if edge_model_inferences_ms else 0
-    total_bytes_sent_kb = total_bytes_sent_to_cloud / 1024 if total_bytes_sent_to_cloud else 0 # convert to kb
-
-    # Get the metrics that calculated in the cloud
-    try:
-        cloud_metrics = requests.get(cloud_server_url.rstrip("/") +"/metrics")
-        cloud_metrics.raise_for_status() # ensures HTTP success
-        cloud_metrics = cloud_metrics.json() # parse jason into python dict
-
-    except Exception as e:
-        print(f"Error: retrieving cloud metrics: {e}")
-        cloud_metrics = {}
-
-    # Add edge-calculated , cloud related metrics
-    cloud_metrics["avg_rt_ms"] = average_round_trip
-    cloud_metrics["slowest_rt_ms"] = slowest_round_trip
-
-
-    # Edge metrics
-    edge_metrics = {
-        "total_frames_processed": total_frames_processed,
-        "frame_drop_ratio": frame_drop_ratio,
-        "avg_edge_inference_time": average_edge_inference_ms,
-    }
-
-    # Network metrics
-    network_bandwidth_metrics = {
-        "total_frames_to_cloud": frame_sent_to_cloud,
-        "total_bytes_sent_to_cloud": total_bytes_sent_kb,
-    }
-
     # give a summary at the end
     print(f"\nVideo analytics completed:"
           f"\n\nTotal frames seen: {total_frames_processed}"
-          f"\n\nFrames sent to the cloud: {frame_sent_to_cloud}"
-          f"\n\nDrop ratio: {frame_drop_ratio}\n")
+          f"\n\nFrames sent to the cloud: {frames_sent_to_cloud}"
+          f"\n\nHeuristic_drop_ratio: {heuristic_drop_ratio:.2f}"
+          f"\n\nCloud avoidance ratio: {cloud_avoidance_ratio:.2f}\n")
 
-    return edge_metrics, network_bandwidth_metrics, cloud_metrics
+
+    return edge_metrics, network_metrics, cloud_metrics, content_counts
 
 #-----------------------------------------------------------------------------------------------------------------------
 # Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
@@ -250,8 +288,8 @@ if __name__ == "__main__":
                         help="Cloud server URL")
 
     parser.add_argument("--skip_interval",
-                        type=int, default=10,
-                        help="Frame Skip: consider and send every (skip+1) frame, interval between frames")
+                        type=int, default=5,
+                        help="Frame Skip: consider and send every (skip+1) frame, interval between frames. Default is 5.")
     parser.add_argument("--resize_width",
                         type=int, default=640,
                         help="Resized frame width (px)")
@@ -289,7 +327,7 @@ if __name__ == "__main__":
         frame_skip = arguments.skip_interval,
         resize_width = arguments.resize_width,
         jpeg_quality = arguments.quality,
-        Heuristic_threshold= arguments.heuristic_threshold,
+        heuristic_threshold= arguments.heuristic_threshold,
         edge_conf_threshold = arguments.edge_conf_threshold,
         live_display = arguments.live_display,
         debug_mode = arguments.debug_mode,
