@@ -2,7 +2,11 @@ import time
 import numpy as np
 import threading # to do non-blocking background warmup
 
+from pygments.lexer import default
+
 from common.visualize import parse_detections
+from common.frame_content import detect_intrusion
+# to count the number of vehicles and pedestarians
 
 #-----------------------------------------------------------------------------------------------------------------------
 # EDGE MODEL: LIGHTWEIGHT MODEL TO PERFORM ON-EDGE INFERENCE AND REDUCE TRAFFIC TO THE CLOUD
@@ -116,9 +120,10 @@ class EdgeModel:
             result_for_image = results[0]
             detections = parse_detections(result_for_image, model=self._model)
             # detections = a list of dictionaries. keys "class" "confidence" "bounding_box"
+
             edge_response = {
                 "processing_time_ms":float(inference_ms),
-                "detections":detections
+                "detections":detections,
             }
 
             # Extract confidence scores only
@@ -140,11 +145,22 @@ class EdgeModel:
         """
         confidences_list, edge_response, inference_ms = self._detect_edge(colored_frame)
 
+        default_intrusion = {
+            "intrusion": False,
+            "alert_level": "GREEN",
+            "intrusion_content": {},
+            "intrusion_count": 0
+        }
+
         if not confidences_list:
             print("Edge model: Edge failed to detect objects. Sending to the cloud.")
             return True, [], edge_response, inference_ms
             # send to could if not objects detected
-        else:
-            edge_decision = max(confidences_list) < self.edge_conf_threshold
 
-            return edge_decision, confidences_list, edge_response, inference_ms
+        send_to_cloud = max(confidences_list) < self.edge_conf_threshold
+
+        if not send_to_cloud:
+            intrusion_content = detect_intrusion(edge_response.get("detections", []))
+            edge_response["intrusion_metrics"] = intrusion_content or default_intrusion
+
+        return send_to_cloud, confidences_list, edge_response, inference_ms
