@@ -8,6 +8,7 @@ from datetime import datetime
 import numpy as np
 import json
 from pathlib import Path
+import threading
 
 from .video_reader import video_frames_generator
 from .preprocess import (resize_frame,
@@ -66,12 +67,25 @@ def orchestrator_run_pipeline(
     frames_sent_to_cloud = 0
 
     previous_grey = None
-    cloud_round_trips_ms = []  # track all cloud round trips time ms
-    edge_model_inferences_ms = [] # collects all edge model inference times
+    cloud_round_trips_ms = []
+    # track all cloud round trips time ms
+    edge_model_inferences_ms = []
+    # collects all edge model inference times
+    cloud_model_inferences_ms = []
     total_bytes_sent_to_cloud = 0
+    round_trip_time = 0.0
+    cloud_infer_ms = 0.0
+    heuristic_drop_ratio = 0.0
+    cloud_avoidance_ratio = 0.0
 
-    # 1.1 Create an EdgeModel instance once before the loop. and take the confidence threshold as an input
+    # 1. Create an EdgeModel instance once before the loop.
     edge_model = EdgeModel(edge_conf_threshold = edge_conf_threshold)
+    # Conduct asynchronous ultralytics loading and warm up
+    threading.Thread(
+        target=edge_model._load_edge_model,
+        kwargs= {"background_warmup": True},
+        daemon=True
+    ).start()
 
     video_writer = None
     Path(VIDEO_OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -95,9 +109,11 @@ def orchestrator_run_pipeline(
     wait_ms = max(1, int(1000 / effective_fps))
     # ms to pass to wait-key
 
-    # Initialize a safe default
-    content_counts = {"vehicle_count": 0, "pedestrian_count": 0}
-    cloud_metrics = {}  # placeholder used by periodic snapshots
+    # Initialize safe defaults
+    edge_metrics = {}
+    network_metrics = {}
+    cloud_metrics = {}
+    intrusion_metrics = {}
 
     # 1. VIDEO DECODER
     try:
@@ -133,18 +149,23 @@ def orchestrator_run_pipeline(
     # 4. LIGHTWEIGHT EDGE MODEL
             # if the fames are significantly different try the edge model (yolo) before sending to the cloud
             else:
-                send_to_cloud, confidences_list, edge_response, inference_ms = edge_model.edg_model_decision(smaller_frame)
+                send_to_cloud, confidences_list, edge_response, edge_inference_ms = edge_model.edg_model_decision(smaller_frame)
 
-                edge_model_inferences_ms.append(inference_ms) # register this edge inference time
-                content_counts = edge_response.get("content_counts",
-                                                   {"vehicle_count": 0, "pedestrian_count": 0})
+                edge_model_inferences_ms.append(edge_inference_ms) # register this edge inference time
+                intrusion_metrics = edge_response.get("intrusion_metrics",
+                                                               {
+                                                                   "intrusion": False,
+                                                                   "alert_level": "GREEN",
+                                                                   "intrusion_content": {},
+                                                                   "intrusion_count": 0
+                                                               })
                 # extract the count of vehicles and pedestrians, or 0  count
                 if not send_to_cloud:
                     frames_processed_on_edge +=1
 
                 display_frame = annotate_frame(smaller_frame, model_response=edge_response)
                 print (f"Edge model: Send to cloud server? {send_to_cloud}."
-                       f"\nInference time: {inference_ms:.2f} ms.\n")
+                       f"\nInference time: {edge_inference_ms:.2f} ms.")
 
     # 5. OFFLOADING MODULE - SEND ONLY INTERESTING FRAMES TO THE CLOUD FOR INFERENCE
                 if send_to_cloud:
@@ -165,15 +186,24 @@ def orchestrator_run_pipeline(
                         frames_sent_to_cloud += 1 # up the frames sent counter
                         cloud_round_trips_ms.append(round_trip_time) # collect ms round trip time
 
-                        content_counts = cloud_response.get("content_counts",
-                                                           {"vehicle_count": 0, "pedestrian_count": 0})
+                        intrusion_metrics = cloud_response.get("intrusion_metrics",
+                                                               {
+                                                                   "intrusion": False,
+                                                                   "alert_level": "GREEN",
+                                                                   "intrusion_content": {},
+                                                                   "intrusion_count": 0
+                                                               })
                         ## to add a fallback for content count
+
+                        cloud_infer_ms = cloud_response.get("processing_time_ms",0.0)
+                        cloud_model_inferences_ms.append(cloud_infer_ms)
+                        # cloud inference time in ms
 
                         display_frame = annotate_frame(smaller_frame, model_response=cloud_response)
                         # call annotate_frame function to place the detections on each frame
 
                         print(f"Cloud server: frame {frame_index} processed by the cloud model."
-                              f"\nRound trip time: {round_trip_time:.2f} ms.\n")
+                              f"\nRound trip time: {round_trip_time:.2f} ms.")
                     except Exception as e:
                         print(f"Edge Error related to sending frame: {frame_index}, {e}")
                         # handling errors
@@ -207,6 +237,7 @@ def orchestrator_run_pipeline(
             frames_dropped = (total_frames_processed - frames_processed_on_edge - frames_sent_to_cloud) if total_frames_processed > 0 else 0
             average_round_trip = np.mean(cloud_round_trips_ms) if cloud_round_trips_ms else 0
             average_edge_inference_ms = np.mean(edge_model_inferences_ms) if edge_model_inferences_ms else 0
+            average_cloud_inference_ms = np.mean(cloud_model_inferences_ms) if cloud_model_inferences_ms else 0
 
             # Metric to show the usefulness of the edge intelligence/processing and dropping of frames
             # Measures: How much cloud traffic you avoided
@@ -222,6 +253,7 @@ def orchestrator_run_pipeline(
             # Edge metrics update per frame
             edge_metrics = {
                 "timestamp": timestamp,
+                "edge_inference_ms": edge_inference_ms,
                 "total_frames_processed": total_frames_processed,
                 "heuristic_frames_dropped": frames_dropped,
                 "cloud_avoidance_ratio": cloud_avoidance_ratio,
@@ -237,7 +269,10 @@ def orchestrator_run_pipeline(
             }
 
             cloud_metrics ={
+                "round_trip_time": round_trip_time,
                 "avg_rt_ms": average_round_trip,
+                "cloud_infer_ms": cloud_infer_ms,
+                "average_cloud_inference_ms": average_cloud_inference_ms,
                 "slowest_rt_ms": slowest_round_trip,
             }
 
@@ -246,7 +281,7 @@ def orchestrator_run_pipeline(
                 edge_metrics = edge_metrics,
                 cloud_metrics = cloud_metrics,
                 network_metrics = network_metrics,
-                content_metrics = content_counts)
+                intrusion_metrics = intrusion_metrics)
 
             if debug_mode and total_frames_processed == debug_frames:
                 break
@@ -268,7 +303,7 @@ def orchestrator_run_pipeline(
           f"\n\nCloud avoidance ratio: {cloud_avoidance_ratio:.2f}\n")
 
 
-    return edge_metrics, network_metrics, cloud_metrics, content_counts
+    return edge_metrics, network_metrics, cloud_metrics, intrusion_metrics
 
 #-----------------------------------------------------------------------------------------------------------------------
 # Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
