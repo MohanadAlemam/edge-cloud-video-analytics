@@ -34,7 +34,7 @@ max_runs = st.sidebar.number_input(
 # how many recent runs to show value=5000 = default
 
 # Helper functions
-def _load_history(path:Path, max_runs:int):
+def _load_history(path:Path, maximum_runs:int):
     if not path.exists():
         return []
 
@@ -46,7 +46,7 @@ def _load_history(path:Path, max_runs:int):
         return []
     # convert it to a list if not a list
     if isinstance(data, list):
-        return data[-max_runs:] # # returns the full list
+        return data[-maximum_runs:] # # returns the full list
     else:
         return [data]
 
@@ -87,7 +87,8 @@ def _build_dataframe(history:list[dict]):
             "intrusion": intrusion.get("intrusion", False),
             "alert_level": intrusion.get("alert_level", "GREEN"),
             "intrusion_content": intrusion.get("intrusion_content", {}),
-            "intrusion_count": int(intrusion.get("intrusion_count", 0)),
+            "frame_mean_conf": round(float(intrusion.get("frame_mean_conf", 0.0)), 2),
+            "objects_count": int(intrusion.get("objects_count", 0)),
         })
 
     if not df_rows:
@@ -128,59 +129,74 @@ def main():
     # Content metrics
     st.markdown("----")
     st.subheader("Intrusion Status")
-    k5, k6, k7 = st.columns(3)
+    k5, k6, k7, k8, k9 = st.columns(5)
     k5.metric("Intrusion Detected", latest_run["intrusion"])
     k6.metric("Alert Level", latest_run["alert_level"])
+    k7.metric("Avg Frame Confidence", latest_run["frame_mean_conf"])
+    k8.metric("Total Objects", latest_run["objects_count"])
+
 
     content = latest_run.get("intrusion_content", {})
     if content:
         content_list =list(content.items())
-        content_df = pd.DataFrame(content_list, columns=["Intruder", "Count"])
+        content_df = pd.DataFrame(content_list, columns=["Top Intruders", "Count"])
         #convert to pd df
         content_df = content_df.sort_values("Count", ascending=False)
         # sort the intrusion content
         #k7.subheader("Threat categories")
-        k7.table(content_df.head(3).set_index("Intruder"))
+        k9.table(content_df.head(3).set_index("Top Intruders"))
     # show top 3
     else:
-        k7.info("No source of threat.")
+        k9.info("No source of threat.")
 
     # Cloud metrics
     st.markdown("----")
     st.subheader("Cloud and Network Metrics")
-    k8, k9, k10, k11, k12 = st.columns(5)
-    k8.metric("Frames -> Cloud", latest_run["frames_sent"])
-    k9.metric("Bandwidth Usage(MB)", latest_run["total_mb_sent"])
-    k10.metric("Cloud Avoidance Ratio", latest_run["cloud_avoidance_ratio"])
-    k11.metric("Avg Round-Trip (ms)", latest_run["avg_rt_time(ms)"])
-    k12.metric("Avg Infer Time (ms)", latest_run["average_cloud_inference_ms"])
+    k10, k11, k12, k13, k14 = st.columns(5)
+    k10.metric("Frames -> Cloud", latest_run["frames_sent"])
+    k11.metric("Bandwidth Usage (MB)", latest_run["total_mb_sent"])
+    k12.metric("Cloud Avoidance Ratio", latest_run["cloud_avoidance_ratio"])
+    k13.metric("Avg Round-Trip Latency (ms)", latest_run["avg_rt_time(ms)"])
+    k14.metric("Avg Infer Time (ms)", latest_run["average_cloud_inference_ms"])
 
     # plot and charts
     st.markdown("----")
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.subheader("Heuristic Drop Ratio")
-        st.line_chart(dataframe.set_index("run_index")["heuristic_drop_ratio"])
+        st.subheader("Edge Heuristic Drop Ratio")
+        st.area_chart(dataframe.set_index("run_index")["heuristic_drop_ratio"],
+                      x_label="Run",
+                      y_label="Drop Ratio")
         # simple line chart for drop ratio
     with c2:
-        st.subheader("Edge Infer Time (ms)")
-        st.line_chart(dataframe.set_index("run_index")["edge_inference_ms"])
+        st.subheader("Edge Infer Time")
+        st.line_chart(dataframe.set_index("run_index")["edge_inference_ms"],
+                      x_label="Run",
+                      y_label="Infer Time (ms)")
     with c3:
-        st.subheader("Network Usage (MB)")
-        st.bar_chart(dataframe.set_index("run_index")["total_mb_sent"])
+        st.subheader("Network Usage")
+        st.bar_chart(dataframe.set_index("run_index")["total_mb_sent"],
+                     x_label="Run",
+                     y_label="Network Usage (MB)")
         # bar chart for m bytes sent
 
     st.markdown("----")
-    c3, c4, c6 = st.columns(3)
-    with c3:
-        st.subheader("Cloud Avoidance Ratio")
-        st.line_chart(dataframe.set_index("run_index")["cloud_avoidance_ratio"])
+    c4, c5, c6 = st.columns(3)
     with c4:
-        st.subheader("Cloud Infer Time (ms)")
-        st.bar_chart(dataframe.set_index("run_index")["cloud_infer_ms"])
+        st.subheader("Cloud Avoidance Ratio")
+        st.area_chart(dataframe.set_index("run_index")["cloud_avoidance_ratio"],
+                      x_label="Run",
+                      y_label="Avoidance Ratio")
+    with c5:
+        st.subheader("Cloud Infer Time")
+        st.line_chart(dataframe.set_index("run_index")["cloud_infer_ms"],
+                      x_label="Run",
+                      y_label="Infer Time (ms)")
     with c6:
-        st.subheader("Round Trip (ms)")
-        st.line_chart(dataframe.set_index("run_index")["round_trip_ms"])
+        st.subheader("Cloud Round-Trip Latency")
+        st.line_chart(dataframe.set_index("run_index")["round_trip_ms"],
+                      x_label="Run",
+                      y_label="Round Trip (ms)")
 
     # RAW DISPLAY OF METRICS
     st.markdown("----")
