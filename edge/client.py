@@ -72,6 +72,7 @@ def orchestrator_run_pipeline(
     edge_model_inferences_ms = []
     # collects all edge model inference times
     cloud_model_inferences_ms = []
+
     total_bytes_sent_to_cloud = 0
     round_trip_time = 0.0
     cloud_infer_ms = 0.0
@@ -157,7 +158,8 @@ def orchestrator_run_pipeline(
                                                                    "intrusion": False,
                                                                    "alert_level": "GREEN",
                                                                    "intrusion_content": {},
-                                                                   "intrusion_count": 0
+                                                                   "frame_mean_conf": 0.0,
+                                                                   "objects_count": 0
                                                                })
                 # extract the count of vehicles and pedestrians, or 0  count
                 if not send_to_cloud:
@@ -191,13 +193,14 @@ def orchestrator_run_pipeline(
                                                                    "intrusion": False,
                                                                    "alert_level": "GREEN",
                                                                    "intrusion_content": {},
-                                                                   "intrusion_count": 0
+                                                                   "frame_mean_conf": 0.0,
+                                                                   "objects_count": 0
                                                                })
                         ## to add a fallback for content count
 
+                        # collect inference time ms
                         cloud_infer_ms = cloud_response.get("processing_time_ms",0.0)
                         cloud_model_inferences_ms.append(cloud_infer_ms)
-                        # cloud inference time in ms
 
                         display_frame = annotate_frame(smaller_frame, model_response=cloud_response)
                         # call annotate_frame function to place the detections on each frame
@@ -252,6 +255,7 @@ def orchestrator_run_pipeline(
 
             # Edge metrics update per frame
             edge_metrics = {
+                "frame_index": frame_index,
                 "timestamp": timestamp,
                 "edge_inference_ms": edge_inference_ms,
                 "total_frames_processed": total_frames_processed,
