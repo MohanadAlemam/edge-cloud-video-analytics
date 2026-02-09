@@ -6,7 +6,7 @@ from pygments.lexer import default
 
 from common.visualize import parse_detections
 from common.frame_content import detect_intrusion
-# to count the number of vehicles and pedestarians
+# to count the number of vehicles and pedestrian
 
 #-----------------------------------------------------------------------------------------------------------------------
 # EDGE MODEL: LIGHTWEIGHT MODEL TO PERFORM ON-EDGE INFERENCE AND REDUCE TRAFFIC TO THE CLOUD
@@ -34,12 +34,12 @@ class EdgeModel:
 
         self._model_loaded = False
         self._model = None
+        self._model_lock = threading.Lock()
 
     # 1. import the backage
     def _import_yolo_package(self):
         """
-        Import the YOLO class at runtime.
-        This defers the ultralytics import until the first time the edge model is actually used.
+        Asynchronously Import ultralytics YOLO class at runtime.
 
         """
         try:
@@ -53,9 +53,16 @@ class EdgeModel:
 
     # 2. Try to conduct a background warmup to avoid blocking the pipeline
     def _background_warmup(self):
+        """
+        Asynchronously perform ultralytics YOLO warm up.
+
+        :return: nothing
+        """
         try:
             dummy = np.zeros((self.warmup_size, self.warmup_size, 3), dtype=np.uint8)
-            _ = self._model(dummy, imgsz=self.warmup_size, verbose=False)
+            #use the locked thread to warm-up
+            with self._model_lock:
+                _ = self._model(dummy, imgsz=self.warmup_size, verbose=False)
 
         except Exception:
             pass # ignore warmup errors
@@ -112,8 +119,9 @@ class EdgeModel:
         # Else run the Yolo inference
         try:
             start_time = time.time()
-
-            results = self._model(colored_frame, imgsz=416, verbose=False)
+            # use the same thread
+            with self._model_lock:
+                results = self._model(colored_frame, imgsz=416, verbose=False)
             # Run the model on the image, ultralytics accepts np images.
             inference_ms = (time.time() - start_time) * 1000.0 # inference time for each frame ms
 
