@@ -1,5 +1,6 @@
 import json
 import pandas as pd
+import matplotlib.pyplot as plt
 
 def build_dataframe(data_path):
     """
@@ -48,3 +49,23 @@ def build_dataframe(data_path):
             "avg_cloud_infer_ms": cloud.get("average_cloud_inference_ms"),
         })
     return pd.DataFrame(rows)
+
+
+def bandwidth_bar_plot(cloud_mb, edge_mb):
+    """
+    Plots the bandwidth bar graph.
+
+    :param cloud_mb: cloud MB
+    :param edge_mb: edge MB
+    :return: bandwidth bar graph
+    """
+    cloud_mb = float(cloud_mb.iloc[0])
+    edge_mb = float(edge_mb.iloc[0])
+
+    # Simple bar plot
+    plt.bar(["cloud_only", "edge_only"], [cloud_mb, edge_mb], color=["orange", "blue"])
+    plt.ylabel("Total MB sent to cloud")
+    plt.title("Bandwidth Usage Comparison (last snapshot)")
+    plt.text(0, cloud_mb + 0.01 * cloud_mb, f"{cloud_mb:.2f}", ha="center")
+    plt.text(1, edge_mb + 0.01 * cloud_mb, f"{edge_mb:.2f}", ha="center")
+    plt.show()
