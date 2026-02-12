@@ -1,5 +1,6 @@
 import json
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 
 def build_dataframe(data_path):
@@ -49,27 +50,61 @@ def build_dataframe(data_path):
         })
     return pd.DataFrame(rows)
 
-
-
-def bandwidth_bar_plot(cloud_mb, edge_mb):
+def edge_cloud_comparison(edge_only: pd.DataFrame, cloud_only: pd.DataFrame):
     """
-    Plots the bandwidth bar graph.
+    Extracts metrics form the two runs (cloud only and edge only ) dataframes.
 
-    :param cloud_mb: cloud MB
-    :param edge_mb: edge MB
-    :return: bandwidth bar graph
+    :param edge_only: metrics history of the edge-only run.
+    :param cloud_only: metrics history of the cloud-only run.
+    :return: barchart and side-by-side comparison of metrics.
     """
-    cloud_mb = float(cloud_mb.iloc[0])
-    edge_mb = float(edge_mb.iloc[0])
 
-    # Simple bar plot
-    plt.bar(["cloud_only", "edge_only"], [cloud_mb, edge_mb], color=["blue", "orange"])
+    edge_final_snapshot = edge_only.iloc[-1]
+    cloud_final_snapshot = cloud_only.iloc[-1]
+    # edge-only  metrics
+    edge_drop_ratio = float(edge_final_snapshot["heuristic_drop_ratio"])
+    edg_cloud_avoidance = float(edge_final_snapshot["cloud_avoidance_ratio"])
+    edge_total_frames = int(edge_final_snapshot["total_frames_processed"])
+    edge_bandwidth = float(edge_final_snapshot["mb_sent_to_cloud"])
+    edge_frames_to_cloud = int(edge_final_snapshot["frames_sent_to_cloud"])
+    # cloud only  metrics
+    cloud_drop_ratio = float(cloud_final_snapshot["heuristic_drop_ratio"])
+    cloud_cloud_avoidance = float(cloud_final_snapshot["cloud_avoidance_ratio"])
+    cloud_total_frames = int(cloud_final_snapshot["total_frames_processed"])
+    cloud_bandwidth = float(cloud_final_snapshot["mb_sent_to_cloud"])
+    cloud_frames_to_cloud = int(cloud_final_snapshot["frames_sent_to_cloud"])
+
+    comparison_df = pd.DataFrame({
+        "Metric": [
+            "Total Frames Processed",
+            "Cloud Avoidance Ratio",
+            "Heuristic Drop Ratio",
+            "Frames Sent to Cloud",
+            "Bandwidth Sent (MB)"
+        ],
+        "Edge-only": [
+            edge_total_frames,
+            edg_cloud_avoidance,
+            edge_drop_ratio,
+            edge_frames_to_cloud,
+            edge_bandwidth
+        ],
+        "cloud_only": [
+            cloud_total_frames,
+            cloud_cloud_avoidance,
+            cloud_drop_ratio,
+            cloud_frames_to_cloud,
+            cloud_bandwidth
+        ]
+    })
+
+    # Simple bar plot to compare bandwidth consumption
+    plt.bar(["cloud_only", "edge_only"], [cloud_bandwidth, edge_bandwidth])
     plt.ylabel("Total MB sent to cloud")
     plt.title("Bandwidth Usage Comparison (last snapshot)")
-    plt.text(0, cloud_mb + 0.01 * cloud_mb, f"{cloud_mb:.2f}", ha="center")
-    plt.text(1, edge_mb + 0.01 * cloud_mb, f"{edge_mb:.2f}", ha="center")
     plt.show()
 
+    return round(comparison_df, 2)
 
 
 def align_data(edge_df:pd.DataFrame, cloud_df:pd.DataFrame, on: str = "frame_index"):
