@@ -194,3 +194,82 @@ def plot_time_series(merged_df:pd.DataFrame, on : str = "frame_index", smooth_wi
 
     plt.tight_layout()
     plt.show()
+
+
+def heuristic_filter_comparison(heuristic_on_df: pd.DataFrame, heuristic_off_df: pd.DataFrame):
+    """
+    Extracts mertics form the two runs (heuristic off and heuristic on) dataframes.
+
+    :param heuristic_on_df: metrics history of the heuristic on run.
+    :param heuristic_off_df: metrics history of the heuristic off run.
+    :return: grouped barchart and side-by-side comparison of metrics.
+    """
+
+    on_final_snapshot = heuristic_on_df.iloc[-1]
+    off_final_snapshot = heuristic_off_df.iloc[-1]
+    # filter on metrics
+    on_drop_ratio = float(on_final_snapshot["heuristic_drop_ratio"])
+    on_frames_dropped = int(on_final_snapshot["heuristic_frames_dropped"])
+    on_total_frames = int(on_final_snapshot["total_frames_processed"])
+    on_bandwidth = float(on_final_snapshot["mb_sent_to_cloud"])
+    on_frames_to_cloud = int(on_final_snapshot["frames_sent_to_cloud"])
+    on_edge_processed = on_total_frames - on_frames_to_cloud - on_frames_dropped
+    # frames processed by the edge model
+    # filter off metrics
+    off_drop_ratio = float(off_final_snapshot["heuristic_drop_ratio"])
+    off_frames_dropped = int(off_final_snapshot["heuristic_frames_dropped"])
+    off_total_frames = int(off_final_snapshot["total_frames_processed"])
+    off_bandwidth = float(off_final_snapshot["mb_sent_to_cloud"])
+    off_frames_to_cloud = int(off_final_snapshot["frames_sent_to_cloud"])
+    off_edge_processed = off_total_frames - off_frames_to_cloud - off_frames_dropped
+    #frames processed by the edge model
+
+    comparison_df = pd.DataFrame({
+        "Metric": [
+            "Total Frames Processed",
+            "Heuristically dropped Frames",
+            "Heuristic Drop Ratio",
+            "Frames processed on edge",
+            "Frames Sent to Cloud",
+            "Bandwidth Sent (MB)"
+        ],
+        "Heuristic OFF": [
+            off_total_frames,
+            off_frames_dropped,
+            off_drop_ratio,
+            off_edge_processed,
+            off_frames_to_cloud,
+            off_bandwidth
+        ],
+        "Heuristic ON": [
+            on_total_frames,
+            on_frames_dropped,
+            on_drop_ratio,
+            on_edge_processed,
+            on_frames_to_cloud,
+            on_bandwidth
+        ]
+    })
+
+    # grouped bar-chart
+    labels = ["Frames on Edge", "Frames to Cloud", "Bandwidth (MB)"]
+    off_vals = [off_edge_processed, off_frames_to_cloud, off_bandwidth]
+    on_vals = [on_edge_processed, on_frames_to_cloud, on_bandwidth]
+
+    x = np.arange(len(labels))
+    width = 0.35
+
+    plt.figure(figsize=(6, 4))
+    plt.bar(x - width/3, off_vals, width, label="Heuristic OFF")
+    plt.bar(x + width/3, on_vals, width, label="Heuristic ON")
+
+    plt.xticks(x, labels)
+    plt.ylabel("Value")
+    plt.title("Heuristic Filter: OFF vs ON")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    return round(comparison_df, 2)
+
+
