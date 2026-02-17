@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import threading
 
+# IMPORT HELPER FUNCTIONS
 from .video_reader import video_frames_generator
 from .preprocess import (resize_frame,
                         convert_to_grayscale,
@@ -17,7 +18,7 @@ from .preprocess import (resize_frame,
                         is_frame_interesting)
 
 from .edge_model import EdgeModel
-#import the edge model to conduct lightweight on-edge processing
+#import the edge model to conduct lightweight on edge processing
 from common.visualize import annotate_frame
 # load the annotation function
 from .cloud_feeder import feed_cloud_jpeg
@@ -25,14 +26,8 @@ from .cloud_feeder import feed_cloud_jpeg
 from common.metrics_snapshot import write_metrics_snapshot
 # import the helper to update the metrics for the dashboard
 
-#-----------------------------------------------------------------------------------------------------------------------
-
-Path("output").mkdir(parents=True, exist_ok=True)
-# this direct exists
 VIDEO_OUTPUT_PATH = "output/annotated_output.mp4"
 # the name of the output file if no realtime/ live display
-METRICS_PATH = "output/metrics_history.json"
-# record metrics for the dashboard to consume
 
 #-----------------------------------------------------------------------------------------------------------------------
 # ORCHESTRATOR FUNCTION TO RUN AND MANGE THE PIPELINE
@@ -47,6 +42,7 @@ def orchestrator_run_pipeline(
         heuristic_threshold: float = 5.0,
         edge_conf_threshold: float = 0.70,
         live_display:bool = False,
+        m_output_dir = "output", # where to write metrics snapshots
         debug_mode:bool = False,
         debug_frames:int = 5,
 ):
@@ -129,7 +125,7 @@ def orchestrator_run_pipeline(
             smaller_frame = resize_frame(colored_frame, target_width=resize_width)
             grey_and_small = convert_to_grayscale(smaller_frame)
 
-            # Skip change detection for the first one
+            # Seed first frame
             if previous_grey is None:
                 previous_grey = grey_and_small
                 continue # stop and go to the next iteration
@@ -139,18 +135,18 @@ def orchestrator_run_pipeline(
                                                                              current_frame = grey_and_small,
                                                                              difference_threshold = heuristic_threshold)
             # Call interesting_frames function and assess the change in the frames
-
-            # Stop, dont send to the cloud if nothing changed
             if not significant_change_detected:
-                print(f"Heuristic change assessment: Is frame interesting? {significant_change_detected}. Score {change_score:.2f}"
+                print(f"Heuristic change assessment: Is frame interesting? {significant_change_detected}. "
+                      f"Score {change_score:.2f}"
                       f"\nNo significant change in the video feed. No further processing will be performed.\n")
                 previous_grey = grey_and_small
-                continue # stop and go to the next iteration
+                continue # drop frame, and go to the next iteration
 
     # 4. LIGHTWEIGHT EDGE MODEL
-            # if the fames are significantly different try the edge model (yolo) before sending to the cloud
+            # if the fame is significantly different try the edge model (yolo) before sending to the cloud
             else:
-                send_to_cloud, confidences_list, edge_response, edge_inference_ms = edge_model.edg_model_decision(smaller_frame)
+                send_to_cloud, confidences_list, edge_response, edge_inference_ms = (
+                    edge_model.edg_model_decision(smaller_frame))
 
                 edge_model_inferences_ms.append(edge_inference_ms) # register this edge inference time
                 intrusion_metrics = edge_response.get("intrusion_metrics",
@@ -164,7 +160,7 @@ def orchestrator_run_pipeline(
                 # extract the count of vehicles and pedestrians, or 0  count
                 if not send_to_cloud:
                     frames_processed_on_edge +=1
-
+                # Annotate the frame
                 display_frame = annotate_frame(smaller_frame, model_response=edge_response)
                 print (f"Edge model: Send to cloud server? {send_to_cloud}."
                        f"\nInference time: {edge_inference_ms:.2f} ms.")
@@ -173,12 +169,9 @@ def orchestrator_run_pipeline(
                 if send_to_cloud:
                     # send the colored frame to the cloud for inference, as it has more info
                     jpeg_payload = encode_to_jpeg_bytes(frame=smaller_frame, quality=jpeg_quality)
-                    # prepare the colored version of the frame as it has more info
-
                     total_bytes_sent_to_cloud += len(jpeg_payload) # accumulate the total bytes
 
-                    send_start = time.time()# record the sending time and send the frame
-
+                    send_start = time.time() #record the sending time and send the frame
     # 6. HEAVYWEIGHT CLOUD MODEL - GET THE CLOUD RESPONSE
                     try:
                         cloud_response = feed_cloud_jpeg(cloud_server_url = cloud_server_url,
@@ -212,7 +205,7 @@ def orchestrator_run_pipeline(
                         # handling errors
 
     # 7. VIDEO DECODER - DRAW DETECTIONS/RESPONSES ON FRAMES
-                        # No realtime display : write the annotated frames to an mp4 video
+                        # No realtime display : write the annotated frames to an mp4 video, in output/
                 if not live_display:
                     if video_writer is None:
                         # create the video writer for the once for the first frame
@@ -237,21 +230,22 @@ def orchestrator_run_pipeline(
 
     # 8. METRICS AGGREGATOR
 
-            frames_dropped = (total_frames_processed - frames_processed_on_edge - frames_sent_to_cloud) if total_frames_processed > 0 else 0
+            frames_dropped = (total_frames_processed - frames_processed_on_edge - frames_sent_to_cloud) \
+                if total_frames_processed > 0 else 0
             average_round_trip = np.mean(cloud_round_trips_ms) if cloud_round_trips_ms else 0
             average_edge_inference_ms = np.mean(edge_model_inferences_ms) if edge_model_inferences_ms else 0
             average_cloud_inference_ms = np.mean(cloud_model_inferences_ms) if cloud_model_inferences_ms else 0
 
-            # Metric to show the usefulness of the edge intelligence/processing and dropping of frames
-            # Measures: How much cloud traffic you avoided
+            # Measures: fraction of  cloud traffic you avoided
             cloud_avoidance_ratio = 1 - (
                     frames_sent_to_cloud / total_frames_processed) if total_frames_processed > 0 else 0
 
-            # How many frames heuristic filter rejected
+            # fraction of filter drops
             heuristic_drop_ratio = frames_dropped / total_frames_processed if frames_dropped > 0 else 0
 
             slowest_round_trip = max(cloud_round_trips_ms) if cloud_round_trips_ms else 0
-            total_bytes_sent_mb = total_bytes_sent_to_cloud / (1024 * 1024) if total_bytes_sent_to_cloud else 0 # convert to kb
+            total_bytes_sent_mb = total_bytes_sent_to_cloud / (1024 * 1024) if total_bytes_sent_to_cloud else 0
+            # convert to kb
 
             # Edge metrics update per frame
             edge_metrics = {
@@ -263,7 +257,6 @@ def orchestrator_run_pipeline(
                 "cloud_avoidance_ratio": cloud_avoidance_ratio,
                 "heuristic_drop_ratio": heuristic_drop_ratio,
                 "avg_edge_inference_time": average_edge_inference_ms,
-                # Add edge-calculated, but cloud related metrics
             }
 
             # Network metrics update per frame
@@ -271,7 +264,7 @@ def orchestrator_run_pipeline(
                 "total_frames_to_cloud": frames_sent_to_cloud,
                 "total_m_bytes_sent_to_cloud": total_bytes_sent_mb,
             }
-
+            # Cloud Metrics
             cloud_metrics ={
                 "round_trip_time": round_trip_time,
                 "avg_rt_ms": average_round_trip,
@@ -280,12 +273,13 @@ def orchestrator_run_pipeline(
                 "slowest_rt_ms": slowest_round_trip,
             }
 
-            # write a snapshot of the metrics
+            # Write a snapshot of the metrics
             write_metrics_snapshot(
                 edge_metrics = edge_metrics,
                 cloud_metrics = cloud_metrics,
                 network_metrics = network_metrics,
-                intrusion_metrics = intrusion_metrics)
+                intrusion_metrics = intrusion_metrics,
+                m_output_dir = m_output_dir)
 
             if debug_mode and total_frames_processed == debug_frames:
                 break
@@ -314,7 +308,7 @@ def orchestrator_run_pipeline(
 #-----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     # Runs only when execute python edge/client.py in the terminal.
-    # Create a CLI parser so users can run this script from the terminal
+    # CLI parser
     parser = argparse.ArgumentParser(
         description="Run edge pipeline"
     )
@@ -323,7 +317,7 @@ if __name__ == "__main__":
                         help="Path to the video file.")
 
     # Optional tuning parameters exposed as CLI flags
-    parser.add_argument("--server_url", type=str, default="http://127.0.0.1:5000",
+    parser.add_argument("--server_url", type=str, default="http://10.0.0.3:5000",
                         help="Cloud server URL")
 
     parser.add_argument("--skip_interval",
@@ -345,6 +339,10 @@ if __name__ == "__main__":
                         type=float, default=0.70,
                         help="Confidence threshold for edge model, decides whether to send the frame to the cloud or not."
                              "Default: 70.0)")
+
+    parser.add_argument("--m_output_dir",
+                        type=str, default= "output",
+                        help="Path to the output directory for metrics snapshots.")
 
     # Modes : debug and realtime display
     parser.add_argument("--debug_mode",
@@ -368,6 +366,7 @@ if __name__ == "__main__":
         jpeg_quality = arguments.quality,
         heuristic_threshold= arguments.heuristic_threshold,
         edge_conf_threshold = arguments.edge_conf_threshold,
+        m_output_dir = arguments.m_output_dir,
         live_display = arguments.live_display,
         debug_mode = arguments.debug_mode,
         debug_frames = arguments.debug_frames,
