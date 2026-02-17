@@ -1,8 +1,7 @@
 import time
 import numpy as np
-import threading # to do non-blocking background warmup
-
-from pygments.lexer import default
+import threading
+# to do non-blocking background warmup
 
 from common.visualize import parse_detections
 from common.frame_content import detect_intrusion
@@ -163,7 +162,8 @@ class EdgeModel:
         if not confidences_list:
             print("Edge model: Edge failed to detect objects. Sending to the cloud.")
             return True, [], edge_response, inference_ms
-            # send to could if not objects detected
+            # Send to could if not objects detected
+            # Change to False, Prevent offloading (edge-only)
 
         send_to_cloud = max(confidences_list) < self.edge_conf_threshold
 
