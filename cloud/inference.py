@@ -1,3 +1,7 @@
+#-----------------------------------------------------------------------------------------------------------------------
+# CLOUD INFERENCE SERVER LOGIC
+#-----------------------------------------------------------------------------------------------------------------------
+
 """
 Cloud Inference Server
 =====================
@@ -9,16 +13,15 @@ from flask import Flask, request, jsonify
 import time
 import argparse
 
-from .utilities import _load_model, _read_frame_from_request, _parse_detections
+from .utilities import _load_model, _read_frame_from_request
+
+from common.visualize import parse_detections
+from common.frame_content import detect_intrusion
 
 app = Flask(__name__)
 
-
-cloud_metrics = {"total_requests_handled": 0,
-                 "per_frame_processing_ms": []}
-
-# ENDPOINT : When someone sends a request to infer, run this function
-@app.route('/inference', methods=['POST'])
+# ENDPOINT : When someone sends a request to infer, run this
+@app.route('/infer', methods=['POST'])
 
 def inference():
     """
@@ -46,34 +49,17 @@ def inference():
         return jsonify({"processing_time_ms": 0.0, "detections":[], "error": "inference failed"}), 500 # internal error
 
     process_time = (time.time() - start) * 1000.0
+    # ms time
 
     frame_result = results[0]
-    detections = _parse_detections(frame_result)
+    detections = parse_detections(frame_result, model = model)
 
-    # Update the cloud metrics dict of this frames info
-    cloud_metrics["total_requests_handled"] += 1
-    cloud_metrics["per_frame_processing_ms"].append(process_time)
+    intrusion_content = detect_intrusion(detections)
+    # compute content
 
-    return jsonify({"processing_time_ms":float(process_time), "detections":detections}), 200 # 200 = success
-
-
-# Metrics
-@app.route('/metrics', methods=['GET'])
-def metrics():
-    """
-    Utilizes the cloud resources to aggregate the cloud metrics from the in-memory info cloud_metrics including:
-
-    - total_requests_handled
-    - per_frame_processing_ms
-    :return cloud metrics aggregation
-    """
-    total = int(cloud_metrics["total_requests_handled"])
-
-    avg_time = (sum(cloud_metrics["per_frame_processing_ms"]) / len(cloud_metrics["per_frame_processing_ms"])
-                if cloud_metrics["per_frame_processing_ms"] else 0.0)
-
-    return jsonify({"cloud_requests_handled":total, "avg_cloud_inference_time_ms":avg_time}), 200
-
+    return jsonify({"processing_time_ms":float(process_time),
+                    "detections":detections,
+                    "intrusion_metrics": intrusion_content}), 200 # 200 = success
 
 # CLI
 if __name__ == '__main__':
@@ -103,7 +89,7 @@ if __name__ == '__main__':
     _load_model(args.model_path)
     # preload the model for a warm start
 
-    app.run(host='127.0.0.1', port=args.port, debug=True)
+    app.run(host='0.0.0.0', port=args.port, debug=True)
     # run the app and listen to queries
 
-    # edge -side : '#"--server_url", type = str, default = "http://10.0.0.3:5000",
+    # edge -side : '--server_url" default = "http://10.0.0.3:5000",
