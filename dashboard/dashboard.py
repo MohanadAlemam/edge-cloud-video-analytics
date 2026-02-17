@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 
-METRICS_PATH = Path("output//metrics_history.json")
+METRICS_PATH = Path("output/metrics_history.json")
 # path to metrics file produced by orchestrator
 
 st.set_page_config(page_title="Edge-Cloud Video Analytics Dashboard", layout="wide")
