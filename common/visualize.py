@@ -22,12 +22,12 @@ def parse_detections(frame_result: list[dict], model):
 
         for box in boxes:
             # each box represents a detected item, with:
-            # box.cls= class index, box.conf = confidence score, box.xyxy = bounding box coordinates
+            # box.cls= class index - box.conf = confidence score - box.xyxy = bounding box coordinates
             confidence = float(getattr(box, "conf", 0.0))
             class_index = int(box.cls) if hasattr(box, "cls") else -1
             # try to get the class index if no index map it to -1 =unknown
 
-            if model and hasattr(model, "names"): # ensure we have the model , with attribute 'names'
+            if model and hasattr(model, "names"): # ensure we have the model with attribute 'names'
             # try to map the classes index to class name
                 class_name = model.names.get(class_index, str(class_index))
             else:
@@ -36,12 +36,12 @@ def parse_detections(frame_result: list[dict], model):
             bounding_box = []
             # Initialize an empty list for the bounding box
             if hasattr(box, "xyxy"):
-            # Check if the detection object actually has bounding-box coordinates
+            # make sure object actually has bounding box coordinates
             # YOLO stores bounding boxes in "xyxy" format
                 try:
                     coordinates = box.xyxy[0].cpu().numpy().tolist()
                         # box.xyxy is usually a PyTorch tensor. [0]: get the first and only box for this detection
-                        # convert to cpu as PyTorch tensors live on the GPU and cannot be directly converted to NumPy.
+                        # convert to cpu pytorch tensors live on the GPU and cannot be directly converted to NumPy
                         # NumPy only works with CPU memory
                     bounding_box = [float(x) for x in coordinates]
                         # convert all coords to floats eg [x1, y1, x2, y2] all floats
@@ -58,16 +58,16 @@ def parse_detections(frame_result: list[dict], model):
 
 
 # Function to draw detections of frames
-def annotate_frame(resized_frame: np.ndarray, cloud_response: dict):
+def annotate_frame(resized_frame: np.ndarray, model_response: dict):
     """
     Draw bounding boxes, and shows labels on each frame based on the cloud_response.
 
     :param resized_frame: frame to draw on, the small/resized frame
-    :param cloud_response: dict returned from cloud inference which contains 'detections'
+    :param model_response: dict returned from cloud inference which contains 'detections'
     :return: annotated frame which can be written to video or displayed
     """
 
-    detections = cloud_response.get("detections", [])
+    detections = model_response.get("detections", [])
     display_frame = resized_frame.copy()  # copy of the resized frame
 
     # Unpack detection object
@@ -82,7 +82,7 @@ def annotate_frame(resized_frame: np.ndarray, cloud_response: dict):
             # converts float values to integers, OpenCV requires ints
 
             cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
-            # (0, 255, 0) make the color in BGR format = green, and 2 is the thickness of the borders
+            # (0, 255, 0) green, and 2 is the thickness of the borders
 
             cv2.putText(
                 display_frame,

@@ -2,7 +2,11 @@ from pathlib import Path
 import json
 
 
-def write_metrics_snapshot(edge_metrics, network_metrics, intrusion_metrics, cloud_metrics):
+def write_metrics_snapshot(edge_metrics,
+                           network_metrics,
+                           intrusion_metrics,
+                           cloud_metrics,
+                           m_output_dir="output"):
     """
     This function writes the metrics snapshot per frame to a file
 
@@ -12,8 +16,8 @@ def write_metrics_snapshot(edge_metrics, network_metrics, intrusion_metrics, clo
     :param intrusion_metrics: intrusion metrics collected for the current frame.
     :return: None. write to hard disk
     """
-    METRICS_PATH = Path("output/metrics_history.json")
-
+    METRICS_PATH = Path(m_output_dir) / "metrics_history.json"
+    METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     snapshot_metrics = {
         "edge_metrics": edge_metrics,
@@ -36,7 +40,8 @@ def write_metrics_snapshot(edge_metrics, network_metrics, intrusion_metrics, clo
 
         # append the snapshot history and remove old logs
         data.append(snapshot_metrics)
-        MAX_HISTORY_LENGTH = 500
+        MAX_HISTORY_LENGTH = 10000
+        # to avoid getting a massive file
         if len(data) > MAX_HISTORY_LENGTH:
             data = data[-MAX_HISTORY_LENGTH:] # keep the last 500
 
