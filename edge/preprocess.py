@@ -73,7 +73,7 @@ def encode_to_jpeg_bytes(frame: np.ndarray, quality:int = 80) -> bytes:
     return encoded_frame.tobytes()
 
 
-# 3. Filter and select interesting frames a heuristic approcah, frame difference including environmental changes and motion detection
+# 3. Filter and select interesting frames a heuristic approcah, changes and motion detection
 def is_frame_interesting(
         previous_frame: Optional[np.ndarray], # previous grayscale frame
         current_frame: np.ndarray, # current gray frame
@@ -89,7 +89,6 @@ def is_frame_interesting(
     """
     if previous_frame is None:
         return True, float("Inf")
-    # no previous frame consider current interesting, always sent the first frame
 
     absolute_difference = cv2.absdiff(previous_frame, current_frame)
     # calculate the difference / environmental changes and motion detection
