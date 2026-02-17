@@ -1,8 +1,8 @@
-### Edge-Cloud Video Analytics
+### **Edge-Cloud Video Analytics**
 
 
 
-1. #### Project Root
+1. #### **Project Root**
 
 
 
@@ -50,7 +50,7 @@ cloud-edge-video-analytics/     <- the project root
 
 #### 
 
-#### 2\. Package Split
+#### **2. Package Split**
 
 
 
@@ -82,7 +82,7 @@ To start, the code should be split into to packages (cloud and edge), and **move
 
 ##### 
 
-##### 3\. Running the System (after splitting packages)
+##### **3. Running the System (after splitting packages)**
 
 
 
@@ -90,7 +90,7 @@ The system runs across two machines: cloud runs the inference API; edge runs the
 
 
 
-##### 3.0 Create \& activate venv (on each machine)
+###### **3.0 Create \& activate venv (on each machine)**
 
 python -m venv venv
 
@@ -98,7 +98,7 @@ source venv/bin/activate
 
 
 
-##### 3.1 Install dependencies (on both machines)
+###### **3.1 Install dependencies (on both machines)**
 
 
 
@@ -110,7 +110,7 @@ pip install -r requirements.txt
 
 
 
-##### 3.2 Start the cloud server (on the cloud machine)
+###### **3.2 Start the cloud server (on the cloud machine)**
 
 
 
@@ -130,7 +130,7 @@ Ensure the server binds to all interfaces (e.g. app.run(host='0.0.0.0', port=arg
 
 
 
-##### 3.3 Start the dashboard (on the edge machine)
+###### **3.3 Start the dashboard (on the edge machine)**
 
 
 
@@ -148,7 +148,7 @@ The dashboard waits for: output/metrics\_history.json
 
 
 
-##### 3.4 Run the edge orchestrator (on the edge machine)
+###### **3.4 Run the edge orchestrator (on the edge machine)**
 
 
 
@@ -170,11 +170,11 @@ python -m edge.client --video\_path "data/experiment\_sample.mp4" --live\_displa
 
 #### 
 
-#### 4\. Experiment runs (optional)
+#### **4. Experiment runs (optional)**
 
 
 
-###### 4.1 Cloud-only (force all frames to cloud)
+###### **4.1 Cloud-only (force all frames to cloud)**
 
 
 
@@ -192,7 +192,9 @@ python -m edge.client \\
 
 
 
-###### 4.2 Edge-only (force local processing)
+###### **4.2 Edge-only (force local processing)**
+
+
 
 python -m edge.client \\
 
@@ -240,7 +242,7 @@ Remember to revert this change after the experiment.
 
 
 
-###### 4.3 Filter ON / OFF
+###### **4.3 Filter ON / OFF**
 
 
 
@@ -258,7 +260,7 @@ Toggle the heuristic filter with:
 
 ##### 
 
-##### 5\. Where results appear:
+##### **5. Where results appear:**
 
 
 
@@ -280,7 +282,7 @@ Toggle the heuristic filter with:
 
 #### 
 
-#### 6\. Advanced Configurations
+#### **6. Advanced Configurations**
 
 
 
@@ -290,7 +292,7 @@ The flowing is the list of all CLI flags, which facilitate configuration and all
 
 ###### 
 
-###### 6.0 Orchestrator CLI flags
+###### **6.0 Orchestrator CLI flags**
 
 
 
@@ -311,7 +313,7 @@ The flowing is the list of all CLI flags, which facilitate configuration and all
 
 
 
-6.1 Cloud Server CLI Flags
+**6.1 Cloud Server CLI Flags**
 
 
 
