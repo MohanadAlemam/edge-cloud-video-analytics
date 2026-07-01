@@ -1,6 +1,4 @@
 import cv2
-import requests
-# HTTP client, sends data to the cloud
 import argparse
 # Commandline argument parsing
 import time
@@ -41,7 +39,7 @@ def orchestrator_run_pipeline(
         jpeg_quality:int = 80,
         heuristic_threshold: float = 5.0,
         edge_conf_threshold: float = 0.70,
-        live_display:bool = False,
+        store_video:bool = False,
         m_output_dir = "output", # where to write metrics snapshots
         debug_mode:bool = False,
         debug_frames:int = 5,
@@ -204,9 +202,9 @@ def orchestrator_run_pipeline(
                         print(f"Edge Error related to sending frame: {frame_index}, {e}")
                         # handling errors
 
-    # 7. VIDEO DECODER - DRAW DETECTIONS/RESPONSES ON FRAMES
+    # 7. VIDEO ENCODER
                         # No realtime display : write the annotated frames to an mp4 video, in output/
-                if not live_display:
+                if store_video:
                     if video_writer is None:
                         # create the video writer for the once for the first frame
                         height, width = display_frame.shape[:2] #  # shape = height, width
@@ -217,7 +215,7 @@ def orchestrator_run_pipeline(
 
                     video_writer.write(display_frame) # write the frame to the video
 
-                if live_display:
+                else:
                 # show to user, OpenCV window
                     cv2.imshow("Frame", display_frame)
                     if cv2.waitKey(wait_ms) & 0xFF == ord('q'):
@@ -289,7 +287,7 @@ def orchestrator_run_pipeline(
             video_writer.release()
             # Finalizes and closes the video file and  writes video metadata to disk
 
-        if live_display:
+        if not store_video:
             cv2.destroyAllWindows()
             # Close all OpenCV windows created by cv2.imshow()
 
@@ -348,9 +346,9 @@ if __name__ == "__main__":
     parser.add_argument("--debug_mode",
                         action="store_true",
                         help = "Enable debug mode: to conduct a test by processing a specific number of frames.")
-    parser.add_argument("--live_display",
+    parser.add_argument("--store_video",
                         action="store_true",
-                        help="Enable real-time live display of predictions, default: save video."
+                        help="Store annotated video, default: live display of annotated frames."
                              "\n\nif 'False' saves frames to a video file.")
 
     # parse the CLI arguments into the pipline argument object
@@ -367,7 +365,7 @@ if __name__ == "__main__":
         heuristic_threshold= arguments.heuristic_threshold,
         edge_conf_threshold = arguments.edge_conf_threshold,
         m_output_dir = arguments.m_output_dir,
-        live_display = arguments.live_display,
+        store_video = arguments.store_video,
         debug_mode = arguments.debug_mode,
         debug_frames = arguments.debug_frames,
     )
