@@ -1,6 +1,7 @@
-#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
 # COMMON PROCESSES
-#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
+
 import cv2
 import numpy as np
 
@@ -57,7 +58,7 @@ def parse_detections(frame_result: list[dict], model):
     return frame_detections # a list of dicts
 
 
-# Function to draw detections of frames
+# Function to draw detections on frames
 def annotate_frame(resized_frame: np.ndarray, model_response: dict):
     """
     Draw bounding boxes, and shows labels on each frame based on the cloud_response.
