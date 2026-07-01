@@ -2,9 +2,7 @@ import cv2
 import argparse
 # Commandline argument parsing
 import time
-from datetime import datetime
 import numpy as np
-import json
 from pathlib import Path
 import threading
 
@@ -16,7 +14,7 @@ from .preprocess import (resize_frame,
                         is_frame_interesting)
 
 from .edge_model import EdgeModel
-#import the edge model to conduct lightweight on edge processing
+# import the edge model to conduct lightweight on edge processing
 from common.visualize import annotate_frame
 # load the annotation function
 from .cloud_feeder import feed_cloud_jpeg
@@ -27,11 +25,11 @@ from common.metrics_snapshot import write_metrics_snapshot
 VIDEO_OUTPUT_PATH = "output/annotated_output.mp4"
 # the name of the output file if no realtime/ live display
 
-#-----------------------------------------------------------------------------------------------------------------------
-# ORCHESTRATOR FUNCTION TO RUN AND MANGE THE PIPELINE
-#-----------------------------------------------------------------------------------------------------------------------
+#######################################################################################################################
+# ORCHESTRATOR RUNs AND MANGEs THE PIPELINE
+#######################################################################################################################
 
-def orchestrator_run_pipeline(
+def pipeline_orchestrator(
         video_path:str,
         cloud_server_url:str,
         frame_skip: int = 5,
@@ -53,7 +51,6 @@ def orchestrator_run_pipeline(
     - Encode to JPEG bytes and send if interesting
     - Send the interesting frames to the could serve and receives responses, print results and simple local metrics.
     """
-    # 1. GENERATING FRAMES FROM THE VIDEO
     print(f"Edge initiating processing pipeline. Server: {cloud_server_url}")
 
     total_frames_processed = 0
@@ -73,7 +70,7 @@ def orchestrator_run_pipeline(
     heuristic_drop_ratio = 0.0
     cloud_avoidance_ratio = 0.0
 
-    # 1. Create an EdgeModel instance once before the loop.
+    # Create an EdgeModel instance once before the loop.
     edge_model = EdgeModel(edge_conf_threshold = edge_conf_threshold)
     # Conduct asynchronous ultralytics loading and warm up
     threading.Thread(
@@ -301,12 +298,11 @@ def orchestrator_run_pipeline(
 
     return edge_metrics, network_metrics, cloud_metrics, intrusion_metrics
 
-#-----------------------------------------------------------------------------------------------------------------------
-# Command-Line Interface (CLI) to run the program from the terminal and control it using text commands and flags
-#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
+# Command-Line Interface (CLI)
+########################################################################################################################
 if __name__ == "__main__":
     # Runs only when execute python edge/client.py in the terminal.
-    # CLI parser
     parser = argparse.ArgumentParser(
         description="Run edge pipeline"
     )
@@ -356,7 +352,7 @@ if __name__ == "__main__":
 
 
     # call the main orchestrator function
-    orchestrator_run_pipeline(
+    pipeline_orchestrator(
         video_path = arguments.video_path,
         cloud_server_url = arguments.server_url,
         frame_skip = arguments.skip_interval,
@@ -369,7 +365,6 @@ if __name__ == "__main__":
         debug_mode = arguments.debug_mode,
         debug_frames = arguments.debug_frames,
     )
-#-----------------------------------------------------------------------------------------------------------------------
 
 
 
