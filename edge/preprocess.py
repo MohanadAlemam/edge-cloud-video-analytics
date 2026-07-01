@@ -41,7 +41,7 @@ def resize_frame(
     return resized_frame
 
 
-# 2. convert to grayscale (useful for processing in the edge)
+# 2. convert to grayscale
 def convert_to_grayscale(frame: np.ndarray) -> np.ndarray:
     """
     Convert the frame to grayscale and return it.

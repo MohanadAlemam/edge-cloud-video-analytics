@@ -5,11 +5,10 @@ import threading
 
 from common.visualize import parse_detections
 from common.frame_content import detect_intrusion
-# to count the number of vehicles and pedestrian
 
-#-----------------------------------------------------------------------------------------------------------------------
-# EDGE MODEL: LIGHTWEIGHT MODEL TO PERFORM ON-EDGE INFERENCE AND REDUCE TRAFFIC TO THE CLOUD
-#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
+# EDGE MODEL: LIGHTWEIGHT MODEL ON-EDGE INFERENCE AND REDUCE TRAFFIC TO THE CLOUD
+########################################################################################################################
 
 class EdgeModel:
     """
@@ -23,7 +22,6 @@ class EdgeModel:
                  model_name: str="yolov8n.pt",
                  edge_conf_threshold: float=0.70,
                  warmup_size: int=100):
-
 
         self.model_name = model_name
         self.edge_conf_threshold = edge_conf_threshold

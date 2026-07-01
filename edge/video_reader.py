@@ -4,7 +4,6 @@ def video_frames_generator (video_path, skip_frames=0):
     """
     generator that yields frames from a video file.
 
-
     :param video_path: path to video file.
     :param skip_frames: number of frames to skip between yielded frames. with = 0 means produce all frames.
 
