@@ -1,22 +1,21 @@
-#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
 # EDGE CLOUD VIDEO ANALYTICS METRICS DASHBOARD
-#-----------------------------------------------------------------------------------------------------------------------
+########################################################################################################################
 import streamlit as st
 import pandas as pd
 import json
 
-import time
 from pathlib import Path
 
 
 METRICS_PATH = Path("output/metrics_history.json")
 # path to metrics file produced by orchestrator
 
-st.set_page_config(page_title="Edge-Cloud Video Analytics Dashboard", layout="wide")
-st.title("Metrics Dashboard: Edge-Cloud Video Analytics")
+st.set_page_config(page_title="Dashboard: Real-Time AI Video Analytics", layout="wide")
+st.title("Real-Time AI Video Analytics Dashboard")
 # main title on the dashboard
 
-st.sidebar.header("Settings")
+st.sidebar.header("Dashboard Controls")
 refresh_interval = st.sidebar.number_input(
     "Auto-refresh interval (seconds, 0 = off)",
     min_value=0,
@@ -24,7 +23,7 @@ refresh_interval = st.sidebar.number_input(
     step=1
 )
 
-show_raw = st.sidebar.checkbox("Show raw JSON", value=False)
+show_raw = st.sidebar.checkbox("Developer Mode (Raw JSON)", value=False)
 # checkbox to toggle showing raw JSON
 max_runs = st.sidebar.number_input(
     "Max runs shown",
@@ -84,9 +83,9 @@ def _build_dataframe(history:list[dict]):
             "total_mb_sent": round(float(network.get("total_m_bytes_sent_to_cloud", 0)), 2),
 
             # content metrics
-            "intrusion": intrusion.get("intrusion", False),
+            "event_triggered": intrusion.get("intrusion", False),
             "alert_level": intrusion.get("alert_level", "GREEN"),
-            "intrusion_content": intrusion.get("intrusion_content", {}),
+            "detected_objects": intrusion.get("intrusion_content", {}),
             "frame_mean_conf": round(float(intrusion.get("frame_mean_conf", 0.0)), 2),
             "objects_count": int(intrusion.get("objects_count", 0)),
         })
@@ -105,56 +104,58 @@ def main():
     """
     history = _load_history(METRICS_PATH, max_runs)
     if not history:
-        st.warning("No history data. Please run the orchestration to produce output and metrics.")
+        st.warning("No data. Run the pipeline to produce outputs, then refresh.")
         # run the waring a return/ do nothing
         return
 
     dataframe = _build_dataframe(history)
+    dataframe = dataframe.tail(250)
+    #keep the  latest 200 runs
 
     if dataframe.empty:
-        st.warning("The metics file is empty. Please run the orchestration to produce metrics.")
+        st.warning("The file is empty. Run the pipeline to produce metrics, then refresh.")
         return
 
     # pick the most recent row for KPI display
     latest_run = dataframe.iloc[-1]
 
-    st.subheader("Edge Metrics")
+    st.subheader("Edge AI Processing")
     k0, k1, k2, k3, k4 = st.columns(5)
     k0.metric("Timestamp (s)", latest_run.get("timestamp(s)"))
-    k1.metric("Frames Seen", latest_run["total_frames_seen"])
+    k1.metric("Frames Processed", latest_run["total_frames_seen"])
     k2.metric("Heuristically Dropped", latest_run["heuristic_frames_dropped"])
     k3.metric("Heuristic Drop Ratio", latest_run["heuristic_drop_ratio"])
     k4.metric("Avg Infer Time (ms)", latest_run["edge_avg_infer_time(ms)"])
 
     # Content metrics
     st.markdown("----")
-    st.subheader("Intrusion Status")
+    st.subheader("Live Scene Analysis")
     k5, k6, k7, k8, k9 = st.columns(5)
-    k5.metric("Intrusion Detected", latest_run["intrusion"])
+    k5.metric("Event Triggered", latest_run["event_triggered"])
     k6.metric("Alert Level", latest_run["alert_level"])
-    k7.metric("Avg Frame Confidence", latest_run["frame_mean_conf"])
-    k8.metric("Total Objects", latest_run["objects_count"])
+    k7.metric("Avg Detection Confidence", latest_run["frame_mean_conf"])
+    k8.metric("Total Detected Objects", latest_run["objects_count"])
 
 
-    content = latest_run.get("intrusion_content", {})
+    content = latest_run.get("detected_objects", {})
     if content:
         content_list =list(content.items())
-        content_df = pd.DataFrame(content_list, columns=["Top Intruders", "Count"])
+        content_df = pd.DataFrame(content_list, columns=["Detected Object", "Count"])
         #convert to pd df
         content_df = content_df.sort_values("Count", ascending=False)
         # sort the intrusion content
         #k7.subheader("Threat categories")
-        k9.table(content_df.head(3).set_index("Top Intruders"))
+        k9.table(content_df.head(3).set_index("Detected Object"))
     # show top 3
     else:
         k9.info("No source of threat.")
 
     # Cloud metrics
     st.markdown("----")
-    st.subheader("Cloud and Network Metrics")
+    st.subheader("Network & Cloud Inference")
     k10, k11, k12, k13, k14 = st.columns(5)
     k10.metric("Frames -> Cloud", latest_run["frames_sent"])
-    k11.metric("Bandwidth Usage (MB)", latest_run["total_mb_sent"])
+    k11.metric("Data/Bandwidth Usage (MB)", latest_run["total_mb_sent"])
     k12.metric("Cloud Avoidance Ratio", latest_run["cloud_avoidance_ratio"])
     k13.metric("Avg Round-Trip Latency (ms)", latest_run["avg_rt_time(ms)"])
     k14.metric("Avg Infer Time (ms)", latest_run["average_cloud_inference_ms"])
@@ -166,18 +167,21 @@ def main():
         st.subheader("Edge Heuristic Drop Ratio")
         st.area_chart(dataframe.set_index("run_index")["heuristic_drop_ratio"],
                       x_label="Run",
-                      y_label="Drop Ratio")
+                      y_label="Drop Ratio",
+                      use_container_width=True)
         # simple line chart for drop ratio
     with c2:
-        st.subheader("Edge Infer Time")
+        st.subheader("Edge AI Inference Time")
         st.line_chart(dataframe.set_index("run_index")["edge_inference_ms"],
                       x_label="Run",
-                      y_label="Infer Time (ms)")
+                      y_label="Infer Time (ms)",
+                      use_container_width=True)
     with c3:
-        st.subheader("Network Usage")
+        st.subheader("Network Bandwidth Usage")
         st.bar_chart(dataframe.set_index("run_index")["total_mb_sent"],
                      x_label="Run",
-                     y_label="Network Usage (MB)")
+                     y_label="Network Usage (MB)",
+                     use_container_width=True)
         # bar chart for m bytes sent
 
     st.markdown("----")
@@ -186,17 +190,20 @@ def main():
         st.subheader("Cloud Avoidance Ratio")
         st.area_chart(dataframe.set_index("run_index")["cloud_avoidance_ratio"],
                       x_label="Run",
-                      y_label="Avoidance Ratio")
+                      y_label="Avoidance Ratio",
+                      use_container_width=True)
     with c5:
-        st.subheader("Cloud Infer Time")
+        st.subheader("Cloud AI Inference Time")
         st.line_chart(dataframe.set_index("run_index")["cloud_infer_ms"],
                       x_label="Run",
-                      y_label="Infer Time (ms)")
+                      y_label="Infer Time (ms)",
+                      use_container_width=True)
     with c6:
         st.subheader("Cloud Round-Trip Latency")
         st.line_chart(dataframe.set_index("run_index")["round_trip_ms"],
                       x_label="Run",
-                      y_label="Round Trip (ms)")
+                      y_label="Round Trip (ms)",
+                      use_container_width=True)
 
     # RAW DISPLAY OF METRICS
     st.markdown("----")
@@ -207,8 +214,6 @@ def main():
     #interactive table showing DataFrame
 
     if refresh_interval > 0:
-        time.sleep(refresh_interval)
-        # pause for the configured number of seconds
         st.rerun()
         # tell Streamlit to rerun the script for live refresh
 
