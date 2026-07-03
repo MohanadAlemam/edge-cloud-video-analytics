@@ -1,326 +1,125 @@
-### **Edge-Cloud Video Analytics**
+## DISTRIBUTED EDGE–CLOUD AI PIPELINE FOR REAL-TIME VIDEO ANALYTICS
+
+### PROBLEM OVERVIEW
+
+Designing and implementing efficient real-time edge-cloud video analytics AI solutions is a multi-objective optimization problem, which requires an intricate balancing and trade-off between latency, privacy, bandwidth, and accuracy for the specific target application.
+
+This project is a prototype of an edge-cloud video analytics distributed system that prioritizes efficiency and demonstrates the trade-off between cost (i.e., low latency and bandwidth preservation) and quality/accuracy of object detection.
+
+### SYSTEM ARCHITECTURE AND WORKFLOW
+
+This prototype adopts edge-cloud architecture (Edge → Cloud → Dashboard). It incorporates a scene-aware orchestrator. The edge decodes the video, pre-processes frames, and deploys a heuristic motion detector to filter out uninteresting frames.
+
+A lightweight on-edge model conducts inference and selectively offloads frames to the cloud. The cloud performs heavy-weight object detection and returns results to the edge. Concurrently, a Streamlit dashboard reads and displays live metrics.
+
+![Archetechure](images/architechture.png)
 
 
+### LIVE DEMONSTRATION
 
-1. #### **Project Root**
+#### Live annotated video
+
+![Demo GIF 1](images/annotated_dmo.gif)
+
+#### Live Streamlit dashboard
+
+![Demo GIF 2](images/dashboard.gif)
+
+### KEY FEATURES
+
+This prototype features an intelligent edge device equipped with a heuristic frame filter and on-edge lightweight object detection model to reduce reliance on the server. The pipeline performs selective cloud offloading, and the live dashboard displays key performance metrics in near-real time. Furthermore, the system features live displays of the annotated video for monitoring and live observability.
 
 
+### MAIN DESIGN OBJECTIVES
+
+- Low latency near-real-time object detection
+- Bandwidth efficiency by minimizing cloud/server reliance
+- Good object detection quality/accuracy
+- Provide high monitoring and observability interface for operator's awareness
+
+### KEY TECH STACK
+
+The core building-block packages and tools include Python, Ultralytics (YOLOv8), PyTorch, OpenCV, Flask, and Streamlit. Refer to requirements.txt for the detailed list of dependencies.
+
+### KEY INSIGHTS AND RESULTS
+
+System-level experiments were conducted to assess the impact of system modules/components on the overall pipeline efficiency. Results were analyzed showing the following key insights:
+- Object detection quality/accuracy: Utilizing the lightweight edge model and selectively offloading frames to the cloud produces a marginally lower but comparable detection quality/accuracy, and gives a significant boost in detection speed.
+- Latency reduction: The edge heuristic filter and lightweight model (i.e., edge intelligence) significantly reduced overall latency (edge inference is approximately 2× faster than cloud).
+
+![Prediction quality](experiments/outputs/smoothed_per_frame time_series.png)
+
+- Monitoring and observability: The dashboard provides live display of key performance indicators (e.g., latency and bandwidth) and scene analysis (events and objects detected).
+
+- Bandwidth savings: With the heuristic filter set to default, edge intelligence resulted in substantial bandwidth savings (approximately 70%).
+
+![Heuristic Filter Impact](experiments/outputs/heuristic_filter_ON_OFF.png)
 
 
+## PROJECT STRUCTURE AND DEPLOYMENT GUIDE
 
+### PROJECT ROOT
+
+```
 cloud-edge-video-analytics/     <- the project root
+
 ├─ cloud/
-│  ├─ inference.py         # main Flask cloud server: POST /infer
-│  └─ utilities.py         # helper functions
-│
+│  ├─ server.py         # main Flask cloud server: POST /infer
+│  └─ utilities.py        # helper functions
+
 ├─ common/
-│  ├─ frame\_content.py     # application level code: intrusion detection
-│  ├─ metrics\_snapshot.py  # write\_metrics\_snapshot() to `output/metricshistory.json`.
-│  └─ visualize.py         #  parse\_detections() and annotate\_frame()
-│
+│  ├─ frame_content.py    # application level code: intrusion detection
+│  ├─ metrics_snapshot.py  # write_metrics_snapshot() to output/metrics_history.json
+│  └─ visualize.py        # parse_detections() and annotate_frame()
+
 ├─ dashboard/
-│  └─ dashboard.py         # Streamlit app (reads output/metrics\_history.json)
-│
+│  └─ dashboard.py         # this is a streamlit app reads output/metrics_history.json
+
 ├─ data/
-│  ├─ experiment\_sample.mp4    # video samples
-│  └─ perimeter\_sample.mp4
-│
+│  └─ experiment_sample.mp4    # video samples used in the experiments and demo
+
 ├─ edge/
-│  ├─ client.py            # orchestrator and main CLI entry: orchestrator\_run\_pipeline())
-│  ├─ cloud\_feeder.py       # feed\_cloud\_jpeg() communicator
-│  ├─ edge\_model.py        # EdgeModel class: includes lazy import, warmup, and lock
-│  ├─ preprocess.py         # heuristic\_filter(), resize\_frame(), convert\_to\_grayscale(), encode\_to\_jpeg\_bytes()
-│  └─ video\_reader.py      # video\_frames\_generator()
-│
+│  ├─ orchestrator.py           # orchestrator and main CLI entry interface
+│  ├─ cloud_feeder.py      # feed_cloud_jpeg() communicator
+│  ├─ edge_model.py        # EdgeModel class: includes lazy import, warmup and lock
+│  ├─ preprocess.py       # for heuristic filtering, frame resizing, and converting froms to grayscale
+│  └─ video_reader.py     # breaks down video stream to individual frames
+
 ├─ experiments/
-│  ├─ e\_utilities.py       # helper analysis functions
-│  └─ experiments.ipynb    # notebook to load JSONs, plots, tables figures and observations
-│
+│  ├─ e_utilities.py       # helper analysis functions
+│  └─ experiments.ipynb    # experiments notebook: load JSONs, plots, figures and observations
+
 ├─ output/
-│  ├─ metrics\_history.json # generated by  edge, save metrics snapshots 
-│  └─ annotated\_output.mp4        # the  generated video output
-│
+│  ├─ metrics_history.json     # generated by edge, saves metrics snapshots
+│  └─ annotated_output.mp4   # if activated this is where the generated annotated video output
+
 ├─ requirements.txt
-│
+
 └─ README.md
+└─ CLI_INTERFACE.md
+└─ DEPLOYMENT.md
 
+```
 
+### Quick Start
 
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+```bash
+# From the project root
 
-#### 
+# 1. Start cloud server
+python -m cloud.server --port 5000
 
-#### **2. Package Split**
-
-
-
-To start, the code should be split into to packages (cloud and edge), and **moved** the corresponding machines, as per this table:
-
-
-
-|**Package name**|**What to include**|**Purpose/notes**|
-|-|-|-|
-|Cloud-package|`cloud/` + `common/`|- Put these on the **cloud** machine. <br />- Start `cloud/inference.py`. <br />- `common/` must be present on cloud.|
-|Edge-package|`edge/` + `common/` + `data/` + `dashboard/` + `output/` + experiments/|- Put these on the **edge** machine. <br />- The orchestrator `edge/client.py` runs the pipeline and writes `output/metrics\_history.json`.|
-|Dashboard|`dashboard/`|Can run on the edge VM/actual machine, basically  any machine have access to `output/metrics\_history.json`.|
-
-
-
-**Important:**
-
-
-
-* `common/` is shared, and must be part of both cloud and edge packages.
-
-
-
-* `output/` belongs to the edge as the orchestrator writes it if not already exists.
-
-
-
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-##### 
-
-##### **3. Running the System (after splitting packages)**
-
-
-
-The system runs across two machines: cloud runs the inference API; edge runs the orchestrator and the dashboard.
-
-
-
-###### **3.0 Create \& activate venv (on each machine)**
-
-python -m venv venv
-
-source venv/bin/activate         
-
-
-
-###### **3.1 Install dependencies (on both machines)**
-
-
-
-From the package directory (or repo root):
-
-
-
-pip install -r requirements.txt
-
-
-
-###### **3.2 Start the cloud server (on the cloud machine)**
-
-
-
-From the repository root (one level above cloud/), run:
-
-
-
-python -m cloud.inference
-
-
-
-
-
-This starts the Flask inference API that receives requests from the edge.
-
-Ensure the server binds to all interfaces (e.g. app.run(host='0.0.0.0', port=args.port)) so the edge can reach it.
-
-
-
-###### **3.3 Start the dashboard (on the edge machine)**
-
-
-
-From the edge package directory (one level above dashboard/):
-
-
-
+# 2. Start dashboard
 streamlit run dashboard/dashboard.py
 
+# 3. Start edge orchestrator
+python -m edge.orchestrator --video_path "data/experiment_sample.mp4" --server_url "http://127.0.0.1:5000"
 
 
+NOTE: Amend CLI flags "--video_path" and "--server_url", to conrepond to the video and the current running server URL.
+```
 
 
-The dashboard waits for: output/metrics\_history.json
-
-
-
-###### **3.4 Run the edge orchestrator (on the edge machine)**
-
-
-
-Basic video analytics query (live display, one level above edge/):
-
-
-
-python -m edge.client --video\_path "data/experiment\_sample.mp4" --live\_display
-
-
-
-
-
---live\_display enables real-time visual output instead of saving the annotated video.
-
-
-
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-#### 
-
-#### **4. Experiment runs (optional)**
-
-
-
-###### **4.1 Cloud-only (force all frames to cloud)**
-
-
-
-python -m edge.client \\
-
-&nbsp; --video\_path "data/experiment\_sample.mp4" \\
-
-&nbsp; --skip\_interval 0 \\
-
-&nbsp; --heuristic\_threshold 5.0 \\
-
-&nbsp; --edge\_conf\_threshold 1.1 \\
-
-&nbsp; --m\_output\_dir "experiments/cloud\_only"
-
-
-
-###### **4.2 Edge-only (force local processing)**
-
-
-
-python -m edge.client \\
-
-&nbsp; --video\_path "data/experiment\_sample.mp4" \\
-
-&nbsp; --skip\_interval 0 \\
-
-&nbsp; --heuristic\_threshold 5.0 \\
-
-&nbsp; --edge\_conf\_threshold -1 \\
-
-&nbsp; --m\_output\_dir "experiments/edge\_only"
-
-
-
-
-
-**Important:** 
-
-
-
-For strict edge-only (no offload even when edge returns no detections), edit the gateway logic in edge/edge\_model.py (decsion function: edg\_model\_decision()), change:
-
-
-
-if not confidences\_list:
-
-&nbsp;   send\_to\_cloud()
-
-
-
-**to**
-
-
-
-if not confidences\_list:
-
-&nbsp;   keep\_local()
-
-
-
-
-
-Remember to revert this change after the experiment.
-
-
-
-###### **4.3 Filter ON / OFF**
-
-
-
-Toggle the heuristic filter with:
-
-
-
---heuristic\_threshold 5.0   # ON (default)
-
---heuristic\_threshold 0     # OFF
-
-
-
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-##### 
-
-##### **5. Where results appear:**
-
-
-
-* output/metrics\_history.json : The per-frame metrics (edge, network, cloud and intrusion), used by the dashboard.
-
-
-
-* output/annotated\_output.mp4 : The annotated video output (when in saving mode)
-
-
-
-* experiments/experiments.ipynb : This notebook includes the experiments data analysis observation and results/plots.
-
-
-
-
-
-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-#### 
-
-#### **6. Advanced Configurations**
-
-
-
-The flowing is the list of all CLI flags, which facilitate configuration and allow custom deployment.
-
-
-
-###### 
-
-###### **6.0 Orchestrator CLI flags**
-
-
-
-|Flag|Type|Default|Meaning|
-|-|-|-|-|
-|`--video\_path`|str|*required*|Path to input video file.|
-|`--server\_url`|str|http://10.0.0.3:5000|Cloud server URL, POST endpoint.|
-|`--skip\_interval`|int|5|Process every `skip+1` frame (0 = no skipping).|
-|`--resize\_width`|int|640|Resize width in px.|
-|`--quality`|int|80|JPEG quality \[0–100].|
-|`--heuristic\_threshold`|float|5.0|Greyscale mean-diff threshold \[0–255].|
-|`--edge\_conf\_threshold`|float|0.70|Edge acceptance threshold \[0–1].|
-|`--m\_output\_dir`|str|output|Output directory for metrics/video.|
-|`--debug\_mode`|flag|False|Enable debug mode (limited frames).|
-|`--live\_display`|flag|False|Show OpenCV window, displays the annotated output in real-time.|
-
-###### 
-
-
-
-**6.1 Cloud Server CLI Flags**
-
-
-
-|Flag|Type|Default|Meaning|
-|-|-|-|-|
-|`--model\_path`|str|./models/yolov8s.pt|Path to cloud YOLO weights.|
-|`--port`|int|5000|Port for the Flask server.|
 
 
 
