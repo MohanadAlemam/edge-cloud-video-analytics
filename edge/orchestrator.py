@@ -324,7 +324,7 @@ if __name__ == "__main__":
                         type=int, default=80,
                         help="JPEG quality (px) 0-100")
     parser.add_argument("--heuristic_threshold",
-                        type=float, default=5.0,
+                        type=float, default=2.0,
                         help="Change Threshold: the mean pixel difference in the frame to consider the frame interesting.")
     parser.add_argument("--debug_frames",
                         type=int, default=5,
