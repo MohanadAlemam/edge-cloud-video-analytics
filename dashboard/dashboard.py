@@ -168,20 +168,20 @@ def main():
         st.area_chart(dataframe.set_index("run_index")["heuristic_drop_ratio"],
                       x_label="Run",
                       y_label="Drop Ratio",
-                      use_container_width=True)
+                      )
         # simple line chart for drop ratio
     with c2:
         st.subheader("Edge AI Inference Time")
         st.line_chart(dataframe.set_index("run_index")["edge_inference_ms"],
                       x_label="Run",
                       y_label="Infer Time (ms)",
-                      use_container_width=True)
+                      )
     with c3:
         st.subheader("Network Bandwidth Usage")
         st.bar_chart(dataframe.set_index("run_index")["total_mb_sent"],
                      x_label="Run",
                      y_label="Network Usage (MB)",
-                     use_container_width=True)
+                     )
         # bar chart for m bytes sent
 
     st.markdown("----")
@@ -191,19 +191,19 @@ def main():
         st.area_chart(dataframe.set_index("run_index")["cloud_avoidance_ratio"],
                       x_label="Run",
                       y_label="Avoidance Ratio",
-                      use_container_width=True)
+                      )
     with c5:
         st.subheader("Cloud AI Inference Time")
         st.line_chart(dataframe.set_index("run_index")["cloud_infer_ms"],
                       x_label="Run",
                       y_label="Infer Time (ms)",
-                      use_container_width=True)
+                      )
     with c6:
         st.subheader("Cloud Round-Trip Latency")
         st.line_chart(dataframe.set_index("run_index")["round_trip_ms"],
                       x_label="Run",
                       y_label="Round Trip (ms)",
-                      use_container_width=True)
+                      )
 
     # RAW DISPLAY OF METRICS
     st.markdown("----")
