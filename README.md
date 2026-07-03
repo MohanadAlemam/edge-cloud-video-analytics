@@ -12,18 +12,18 @@ This prototype adopts edge-cloud architecture (Edge → Cloud → Dashboard). It
 
 A lightweight on-edge model conducts inference and selectively offloads frames to the cloud. The cloud performs heavy-weight object detection and returns results to the edge. Concurrently, a Streamlit dashboard reads and displays live metrics.
 
-![Archetechure](images/architechture.png)
+![Archetechure](experiments/outputs/architechture.png)
 
 
 ### LIVE DEMONSTRATION
 
 #### Live annotated video
 
-![Demo GIF 1](images/annotated_dmo.gif)
+![Demo GIF 1](experiments/outputs/gif_annotated_dmo.gif)
 
 #### Live Streamlit dashboard
 
-![Demo GIF 2](images/dashboard.gif)
+![Demo GIF 2](experiments/outputs/gif_dashboard.gif)
 
 ### KEY FEATURES
 
