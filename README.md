@@ -47,7 +47,7 @@ System-level experiments were conducted to assess the impact of system modules/c
 - Object detection quality/accuracy: Utilizing the lightweight edge model and selectively offloading frames to the cloud produces a marginally lower but comparable detection quality/accuracy, and gives a significant boost in detection speed.
 - Latency reduction: The edge heuristic filter and lightweight model (i.e., edge intelligence) significantly reduced overall latency (edge inference is approximately 2× faster than cloud).
 
-![Prediction quality](experiments/outputs/smoothed_per_frame time_series.png)
+![Prediction quality](experiments/outputs/smoothed_per_frame_time_series.png) 
 
 - Monitoring and observability: The dashboard provides live display of key performance indicators (e.g., latency and bandwidth) and scene analysis (events and objects detected).
 
