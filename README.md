@@ -1,12 +1,12 @@
 ## DISTRIBUTED EDGE–CLOUD AI PIPELINE FOR REAL-TIME VIDEO ANALYTICS
 
-### PROBLEM OVERVIEW
+### 1. PROBLEM OVERVIEW
 
 Designing and implementing efficient real-time edge-cloud video analytics AI solutions is a multi-objective optimization problem, which requires an intricate balancing and trade-off between latency, privacy, bandwidth, and accuracy for the specific target application.
 
-This project is a prototype of an edge-cloud video analytics distributed system that prioritizes efficiency and demonstrates the trade-off between cost (i.e., low latency and bandwidth preservation) and quality/accuracy of object detection.
+This project is a ***prototype*** of an edge-cloud video analytics distributed system that prioritizes efficiency and demonstrates the trade-off between cost (i.e., low latency and bandwidth preservation) and quality/accuracy of object detection.
 
-### SYSTEM ARCHITECTURE AND WORKFLOW
+### 2. SYSTEM ARCHITECTURE AND WORKFLOW
 
 This prototype adopts edge-cloud architecture (Edge → Cloud → Dashboard). It incorporates a scene-aware orchestrator. The edge decodes the video, pre-processes frames, and deploys a heuristic motion detector to filter out uninteresting frames.
 
@@ -15,33 +15,33 @@ A lightweight on-edge model conducts inference and selectively offloads frames t
 ![Archetechure](experiments/outputs/architechture.png)
 
 
-### LIVE DEMONSTRATION
+### 3. LIVE DEMONSTRATION
 
-#### Live annotated video
+#### 3.1 Live annotated video
 
 ![Demo GIF 1](experiments/outputs/gif_annotated_dmo.gif)
 
-#### Live Streamlit dashboard
+#### 3.2 Live Streamlit dashboard
 
 ![Demo GIF 2](experiments/outputs/gif_dashboard.gif)
 
-### KEY FEATURES
+### 4. KEY FEATURES
 
 This prototype features an intelligent edge device equipped with a heuristic frame filter and on-edge lightweight object detection model to reduce reliance on the server. The pipeline performs selective cloud offloading, and the live dashboard displays key performance metrics in near-real time. Furthermore, the system features live displays of the annotated video for monitoring and live observability.
 
 
-### MAIN DESIGN OBJECTIVES
+### 5. MAIN DESIGN OBJECTIVES
 
 - Low latency near-real-time object detection
 - Bandwidth efficiency by minimizing cloud/server reliance
 - Good object detection quality/accuracy
 - Provide high monitoring and observability interface for operator's awareness
 
-### KEY TECH STACK
+### 6. KEY TECH STACK
 
 The core building-block packages and tools include Python, Ultralytics (YOLOv8), PyTorch, OpenCV, Flask, and Streamlit. Refer to requirements.txt for the detailed list of dependencies.
 
-### KEY INSIGHTS AND RESULTS
+### 7. KEY INSIGHTS AND RESULTS
 
 System-level experiments were conducted to assess the impact of system modules/components on the overall pipeline efficiency. Results were analyzed showing the following key insights:
 - Object detection quality/accuracy: Utilizing the lightweight edge model and selectively offloading frames to the cloud produces a marginally lower but comparable detection quality/accuracy, and gives a significant boost in detection speed.
@@ -56,9 +56,7 @@ System-level experiments were conducted to assess the impact of system modules/c
 ![Heuristic Filter Impact](experiments/outputs/heuristic_filter_ON_OFF.png)
 
 
-## PROJECT STRUCTURE AND DEPLOYMENT GUIDE
-
-### PROJECT ROOT
+### 8. PROJECT STRUCTURE AND GUIDE
 
 ```
 cloud-edge-video-analytics/     <- the project root
@@ -101,25 +99,44 @@ cloud-edge-video-analytics/     <- the project root
 
 ```
 
-### Quick Start
+
+
+### 9. Quick Start
+
+#### 9.1. Install dependencies
 
 ```bash
-# From the project root
+pip install --upgrade pip
+pip install -r requirements.txt
+````
 
-# 1. Start cloud server
+---
+
+#### 9.2. Run the system (from project root)
+
+#### Start Cloud Server
+
+```bash
 python -m cloud.server --port 5000
-
-# 2. Start dashboard
-streamlit run dashboard/dashboard.py
-
-# 3. Start edge orchestrator
-python -m edge.orchestrator --video_path "data/experiment_sample.mp4" --server_url "http://127.0.0.1:5000"
-
-
-NOTE: Amend CLI flags "--video_path" and "--server_url", to conrepond to the video and the current running server URL.
 ```
 
+#### Start Dashboard
 
+```bash
+streamlit run dashboard/dashboard.py
+```
+
+#### Start Edge Orchestrator
+
+```bash
+python -m edge.orchestrator --video_path "data/demo3_1080_30fps.mp4" --server_url "http://127.0.0.1:5000"
+```
+
+---
+
+#### NOTE
+
+Amend CLI flags `--video_path` and `--server_url` to correspond to the video and the currently running server URL.
 
 
 

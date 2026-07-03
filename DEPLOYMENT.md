@@ -1,26 +1,26 @@
-# STEP 1: DISTRIBUTED DEPLOYMENT MODEL (Edge / Cloud / Dashboard)
+## STEP 1: DISTRIBUTED DEPLOYMENT MODEL (Edge / Cloud / Dashboard)
 
 create and install the following packages to their respective machines/VMs.
 
-| Package | What to include | Purpose / Notes |
-|---------|-----------------|-----------------|
-| Cloud package | `cloud/`, `common/`, `requirements.txt` | Deploy on the cloud VM. Start `cloud/server.py`. `common/` must be present. |
-| Edge package | `edge/`, `common/`, `data/`, `dashboard/`, `output/`, `requirements.txt` | Deploy on the edge VM. Run `edge/orchestrator.py`. Writes `output/metrics_history.json`. |
-| Dashboard | `dashboard/` | Can run on the edge VM or any machine with access to `output/metrics_history.json`. |
+| Package | What to include | Purpose / Notes                                                                               |
+|---------|-----------------|-----------------------------------------------------------------------------------------------|
+| Cloud package | `cloud/`, `common/`, `requirements.txt` | Deploy to the cloud VM. Start `cloud/server.py`. `common/` must be present.                   |
+| Edge package | `edge/`, `common/`, `data/`, `dashboard/`, `output/`, `requirements.txt` | Deploy to the edge VM. Run `edge/orchestrator.py`. This Writes `output/metrics_history.json`. |
+| Dashboard | `dashboard/` | Can run on the edge VM or any machine with access to `output/metrics_history.json`.           |
 
-## Deployment Notes
+### Deployment Notes
 
 > **Note**
 >
-> - `common/` and `requirements.txt` must be included in both the Edge and Cloud packages.
-> - `output/` is created automatically by the orchestrator if it does not already exist.
-> - `experiments/` contains the notebooks and scripts used for performance evaluation and analysis.
+> - `common/` and `requirements.txt` have to be included in both Edge and Cloud packages.
+> - `output/` is created automatically by the orchestrator if it does exist.
+> - `experiments/` contains the Jupyter notebook and script and analysis used for performance evaluation.
 
 ---
 
-# Running the System
+## Running the System
 
-## 1. Create and activate a virtual environment (both machines)
+### 1. Instantiate and activate a virtual environment (on both machines)
 
 ```bash
 python3 -m venv venv
@@ -29,7 +29,7 @@ source venv/bin/activate
 
 ---
 
-## 2. Install dependencies (both machines)
+### 2. Install dependencies (on both machines)
 
 ```bash
 pip install --upgrade pip
@@ -38,25 +38,23 @@ pip install -r requirements.txt
 
 ---
 
-## 3. Start the Cloud Server
-
-From the project root:
+### 3. Start the Cloud Server (From the project root):
 
 ```bash
 python -m cloud.server --port 5000
 ```
 
-By default, the server listens on all interfaces (`0.0.0.0`), allowing edge devices to connect.
+By default the server listens on all interfaces (`0.0.0.0`), awaiting edge requests.
 
 ---
 
-## 4. Start the Dashboard
+### 4. Start the Dashboard
 
 ```bash
 streamlit run dashboard/dashboard.py
 ```
 
-The dashboard monitors:
+The dashboard periodically and continuously reads this JSON file:
 
 ```text
 output/metrics_history.json
@@ -64,24 +62,25 @@ output/metrics_history.json
 
 ---
 
-## 5. Run the Edge Orchestrator
+### 5. Run the Edge Orchestrator
 
 ```bash
 python -m edge.orchestrator \
     --video_path "data/experiment_sample.mp4" \
-    --server_url "http://127.0.0.1:5000"
+    --server_url "http://xxxxxxxxxxx.xxxx" 
 ```
+Insert the Server URL  that is currently running.
 
 Optional:
 
 - Add `--store_video` to save the annotated output video.
-- Change `--server_url` when connecting to a remote cloud server.
+- Change `--video_path` and `--server_url` to correspond to the video and the currently running server URL.
 
 ---
 
-# Experiment Configurations
+## Experiment Configurations
 
-## Cloud-only (Force Cloud Processing)
+### Cloud-only (Force Cloud Processing)
 
 ```bash
 python -m edge.orchestrator \
@@ -95,7 +94,7 @@ python -m edge.orchestrator \
 
 ---
 
-## Edge-only (Force Edge Processing)
+### Edge-only (Force Edge Processing)
 
 ```bash
 python -m edge.orchestrator \
@@ -107,7 +106,7 @@ python -m edge.orchestrator \
     --server_url "http://10.0.0.3:5000"
 ```
 
-For the Edge-only experiment, temporarily modify the decision gateway in `edge/edge_model.py`:
+For the Edge only experiment temporarily modify the decision gateway in `edge/edge_model.py`:
 
 Replace:
 
@@ -127,7 +126,7 @@ Restore the original logic after completing the experiment.
 
 ---
 
-## Enable / Disable the Heuristic Filter
+### Enable / Disable the Heuristic Filter
 
 ```text
 --heuristic_threshold 5.0   # Default (enabled)
@@ -137,8 +136,8 @@ Restore the original logic after completing the experiment.
 
 ---
 
-# Output Files
+## Output Files
 
-- `output/metrics_history.json` – Live edge, cloud, network and scene metrics.
+- `output/metrics_history.json` – Live edge cloud, network and scene metrics.
 - `output/annotated_output.mp4` – Annotated output video (when `--store_video` is enabled).
-- `experiments/experiments.ipynb` – Experimental analysis, plots and observations.
+- `experiments/experiments.ipynb` – Experimental analysis plots and observations.
