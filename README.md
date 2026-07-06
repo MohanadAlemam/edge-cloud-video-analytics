@@ -12,18 +12,18 @@ This prototype adopts edge-cloud architecture (Edge → Cloud → Dashboard). It
 
 A lightweight on-edge model conducts inference and selectively offloads frames to the cloud. The cloud performs heavy-weight object detection and returns results to the edge. Concurrently, a Streamlit dashboard reads and displays live metrics.
 
-![Archetechure](experiments/outputs/architechture.png)
+![Archetechure](images/architechture.png)
 
 
 ### 3. LIVE DEMONSTRATION
 
 #### 3.1 Live annotated video
 
-![Demo GIF 1](experiments/outputs/gif_annotated_dmo.gif)
+![Demo GIF 1](images/gif_annotated_dmo.gif)
 
 #### 3.2 Live Streamlit dashboard
 
-![Demo GIF 2](experiments/outputs/gif_dashboard.gif)
+![Demo GIF 2](images/gif_dashboard.gif)
 
 ### 4. KEY FEATURES
 
@@ -47,63 +47,74 @@ System-level experiments were conducted to assess the impact of system modules/c
 - Object detection quality/accuracy: Utilizing the lightweight edge model and selectively offloading frames to the cloud produces a marginally lower but comparable detection quality/accuracy, and gives a significant boost in detection speed.
 - Latency reduction: The edge heuristic filter and lightweight model (i.e., edge intelligence) significantly reduced overall latency (edge inference is approximately 2× faster than cloud).
 
-![Prediction quality](experiments/outputs/smoothed_per_frame_time_series.png) 
+![Prediction quality](images/smoothed_per_frame_time_series.png) 
 
 - Monitoring and observability: The dashboard provides live display of key performance indicators (e.g., latency and bandwidth) and scene analysis (events and objects detected).
 
 - Bandwidth savings: With the heuristic filter set to default, edge intelligence resulted in substantial bandwidth savings (approximately 70%).
 
-![Heuristic Filter Impact](experiments/outputs/heuristic_filter_ON_OFF.png)
+![Heuristic Filter Impact](images/heuristic_filter_ON_OFF.png)
 
+### 8. Technical Report 
 
-### 8. PROJECT STRUCTURE AND GUIDE
+For detailed information on the system's design, implementation, and evaluation, refer to the technical report at *docs/Technical_Report.pdf*.
+
+### 9. PROJECT STRUCTURE AND GUIDE
 
 ```
 cloud-edge-video-analytics/     <- the project root
 
 ├─ cloud/
-│  ├─ server.py         # main Flask cloud server: POST /infer
-│  └─ utilities.py        # helper functions
-
+│  ├─ server.py                 # main Flask cloud server: POST /infer
+│  └─ utilities.py              # helper functions
+│
 ├─ common/
-│  ├─ frame_content.py    # application level code: intrusion detection
-│  ├─ metrics_snapshot.py  # write_metrics_snapshot() to output/metrics_history.json
-│  └─ visualize.py        # parse_detections() and annotate_frame()
-
+│  ├─ frame_content.py          # application level code: intrusion detection
+│  ├─ metrics_snapshot.py       # write_metrics_snapshot() to output/metrics_history.json
+│  └─ visualize.py              # parse_detections() and annotate_frame()
+│
 ├─ dashboard/
-│  └─ dashboard.py         # this is a streamlit app reads output/metrics_history.json
-
+│  └─ dashboard.py              # this is a streamlit app reads output/metrics_history.json
+│
 ├─ data/
-│  └─ experiment_sample.mp4    # video samples used in the experiments and demo
-
+│  ├─ experiment_sample.mp4     # video samples used in the experiments and demo
+│  ├─ demo1_1080_30fps.mp4      # additional demo video
+│  └─ demo3_1080_30fps.mp4      # project demo video
+│
+├─ docs/
+│  ├─ Technical_Report.pdf   # report detailed system design implementation and evaluation
+│  ├─ CLI_INTERFACE.md          # CLI flags and reference
+│  └─ DEPLOYMENT.md           # deployment instructions
+│
 ├─ edge/
-│  ├─ orchestrator.py           # orchestrator and main CLI entry interface
-│  ├─ cloud_feeder.py      # feed_cloud_jpeg() communicator
-│  ├─ edge_model.py        # EdgeModel class: includes lazy import, warmup and lock
-│  ├─ preprocess.py       # for heuristic filtering, frame resizing, and converting froms to grayscale
-│  └─ video_reader.py     # breaks down video stream to individual frames
-
+│  ├─ orchestrator.py        # orchestrator and main CLI entry interface
+│  ├─ cloud_feeder.py           # feed_cloud_jpeg() communicator
+│  ├─ edge_model.py          # EdgeModel class: includes lazy import, warmup and lock
+│  ├─ preprocess.py             # for heuristic filtering, frame resizing, and converting forms to grayscale
+│  └─ video_reader.py        # breaks down video stream to individual frames
+│
 ├─ experiments/
-│  ├─ e_utilities.py       # helper analysis functions
-│  └─ experiments.ipynb    # experiments notebook: load JSONs, plots, figures and observations
-
+│  ├─ e_utilities.py         # helper analysis functions
+│  └─ experiments.ipynb       # experiments notebook: load JSONs, plots, figures and observations
+│
+├─ images/              # figures and diagrams and demo GIFs used in README
+│
 ├─ output/
-│  ├─ metrics_history.json     # generated by edge, saves metrics snapshots
+│  ├─ metrics_history.json      # generated by edge to save metrics snapshots
 │  └─ annotated_output.mp4   # if activated this is where the generated annotated video output
-
+│
+├─ .gitignore
 ├─ requirements.txt
-
+├─ LICENSE
 └─ README.md
-└─ CLI_INTERFACE.md
-└─ DEPLOYMENT.md
 
 ```
 
 
 
-### 9. Quick Start
+### 10. Quick Start
 
-#### 9.1. Install dependencies
+#### 10.1. Install dependencies
 
 ```bash
 pip install --upgrade pip
@@ -112,7 +123,7 @@ pip install -r requirements.txt
 
 ---
 
-#### 9.2. Run the system (from project root)
+#### 10.2. Run the system (from project root)
 
 #### Start Cloud Server
 
