@@ -1,0 +1,66 @@
+# Prevent the following files and temporary folder from being committed to the remote repo, so they don't clutter the repo 
+
+# ========================
+# Python artifacts
+# ========================
+__pycache__/
+*.pyc
+*.pyo
+
+# ========================
+# Virtual environments
+# ========================
+.venv/
+.env/
+
+# ========================
+# Jupyter notebooks backups
+# ========================
+.ipynb_checkpoints/
+
+# ========================
+# Data
+# ========================
+data/
+
+# ========================
+# IDE / OS files
+# ========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ========================
+# Logs / outputs / results
+# ========================
+*.log
+results/
+
+# =======================
+# Testing / type checking
+# =======================
+.mypy_cache/
+.pytest_cache/
+.coverage
+
+# =======================
+# Model artifacts
+# =======================
+*.h5
+*.keras
+
+# =======================
+# Jupyter checkpoints
+# ======================
+.ipynb_checkpoints/
+
+# ======================
+# Ignore model files
+# ======================
+*.joblib
+*.pkl
+
+
+__pycache__/
+*.pyc
