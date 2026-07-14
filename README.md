@@ -10,14 +10,7 @@ This project is a ***prototype*** of an edge-cloud video analytics distributed s
 
 This prototype features an intelligent edge device equipped with a heuristic frame filter and on-edge lightweight object detection model to reduce reliance on the server. The pipeline performs selective cloud offloading, and the live dashboard displays key performance metrics in near-real time. Furthermore, the system features live displays of the annotated video for monitoring and live observability.
 
-### 3. ARCHITECTURE AND WORKFLOW
-
-This prototype adopts an edge-cloud architecture (i.e. Edge - Cloud - Dashboard). The edge decodes the video, pre-processes frames, and deploys a heuristic motion detector to filter out uninteresting frames. A lightweight on-edge model conducts inference and selectively offloads frames to the cloud. The cloud performs heavy-weight object detection and returns results to the edge. Concurrently, a Streamlit dashboard reads and displays live metrics.
-
-![Archetechure](images/architechture.png)
-
-
-### 4. LIVE DEMONSTRATION
+### 3. LIVE DEMONSTRATION
 
 #### 3.1 Live annotated video
 
@@ -27,12 +20,18 @@ This prototype adopts an edge-cloud architecture (i.e. Edge - Cloud - Dashboard)
 
 ![Demo GIF 2](images/gif_dashboard.gif)
 
-### 5. MAIN DESIGN OBJECTIVES
+### 4. MAIN DESIGN OBJECTIVES
 
-- Low latency near-real-time object detection
-- Bandwidth efficiency by minimizing cloud/server reliance
-- Good object detection quality/accuracy
-- Provide high monitoring and observability interface for operator's awareness
+- Low latency near-real-time object detection.
+- Bandwidth efficiency by minimizing cloud/server reliance.
+- Good object detection quality/accuracy.
+- Provide high monitoring and observability interface for operator's awareness.
+
+### 5. ARCHITECTURE AND WORKFLOW
+
+This prototype adopts an edge-cloud architecture (i.e. Edge - Cloud - Dashboard). The edge decodes the video, pre-processes frames, and deploys a heuristic motion detector to filter out uninteresting frames. A lightweight on-edge model conducts inference and selectively offloads frames to the cloud. The cloud performs heavy-weight object detection and returns results to the edge. Concurrently, a Streamlit dashboard reads and displays live metrics.
+
+![Archetechure](images/architechture.png)
 
 ### 6. KEY TECH STACK
 
