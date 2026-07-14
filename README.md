@@ -6,16 +6,18 @@ Designing and implementing efficient real-time edge-cloud video analytics AI sol
 
 This project is a ***prototype*** of an edge-cloud video analytics distributed system that prioritizes efficiency and demonstrates the trade-off between cost (i.e., low latency and bandwidth preservation) and quality/accuracy of object detection.
 
-### 2. SYSTEM ARCHITECTURE AND WORKFLOW
+### 2. KEY FEATURES
 
-This prototype adopts edge-cloud architecture (Edge → Cloud → Dashboard). It incorporates a scene-aware orchestrator. The edge decodes the video, pre-processes frames, and deploys a heuristic motion detector to filter out uninteresting frames.
+This prototype features an intelligent edge device equipped with a heuristic frame filter and on-edge lightweight object detection model to reduce reliance on the server. The pipeline performs selective cloud offloading, and the live dashboard displays key performance metrics in near-real time. Furthermore, the system features live displays of the annotated video for monitoring and live observability.
 
-A lightweight on-edge model conducts inference and selectively offloads frames to the cloud. The cloud performs heavy-weight object detection and returns results to the edge. Concurrently, a Streamlit dashboard reads and displays live metrics.
+### 3. ARCHITECTURE AND WORKFLOW
+
+This prototype adopts an edge-cloud architecture (i.e. Edge - Cloud - Dashboard). The edge decodes the video, pre-processes frames, and deploys a heuristic motion detector to filter out uninteresting frames. A lightweight on-edge model conducts inference and selectively offloads frames to the cloud. The cloud performs heavy-weight object detection and returns results to the edge. Concurrently, a Streamlit dashboard reads and displays live metrics.
 
 ![Archetechure](images/architechture.png)
 
 
-### 3. LIVE DEMONSTRATION
+### 4. LIVE DEMONSTRATION
 
 #### 3.1 Live annotated video
 
@@ -24,11 +26,6 @@ A lightweight on-edge model conducts inference and selectively offloads frames t
 #### 3.2 Live Streamlit dashboard
 
 ![Demo GIF 2](images/gif_dashboard.gif)
-
-### 4. KEY FEATURES
-
-This prototype features an intelligent edge device equipped with a heuristic frame filter and on-edge lightweight object detection model to reduce reliance on the server. The pipeline performs selective cloud offloading, and the live dashboard displays key performance metrics in near-real time. Furthermore, the system features live displays of the annotated video for monitoring and live observability.
-
 
 ### 5. MAIN DESIGN OBJECTIVES
 
